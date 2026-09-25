@@ -13,10 +13,21 @@ for (const f of ['data.js', 'app.js', 'styles.css']) fs.copyFileSync(path.join(h
 // Same wrapper the artifact host adds around the page.
 fs.writeFileSync(path.join(dir, 'index.html'), '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>' + fs.readFileSync(path.join(here, 'index.html'), 'utf8') + '</body></html>');
 const URL_ = pathToFileURL(path.join(dir, 'index.html')).href;
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || '/opt/node22/lib/node_modules/playwright/index.mjs');
-const b = await chromium.launch(process.env.CHROMIUM_PATH === '' ? {} : { executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
+// Playwright is a dev tool here, not a project dependency: use the one on this machine.
+async function loadPlaywright() {
+  for (const spec of [process.env.PLAYWRIGHT_MODULE, 'playwright', '/opt/node22/lib/node_modules/playwright/index.mjs']) {
+    if (!spec) continue;
+    try { return await import(spec); } catch { /* try the next location */ }
+  }
+  console.error('Playwright not found. Set PLAYWRIGHT_MODULE to its index.mjs.');
+  process.exit(2);
+}
+const { chromium } = await loadPlaywright();
+const chromiumPath = process.env.CHROMIUM_PATH ?? (fs.existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : '');
 const problems = new Set();
 const note = (m) => problems.add(m);
+const b = await chromium.launch(chromiumPath ? { executablePath: chromiumPath } : {});
+try {
 const PAGES = ['profile','exec','planning','prep','glaze','lines','sorting','quality','stores','sales','dispatch','purchasing','maintenance','energy','people','costing','safety','products','materials','recipes','assets','spareParts','warehouses','suppliers','dealers','employees','codes'];
 
 // Layout audit: page must not scroll sideways; nothing may be clipped by an overflow:hidden box;
@@ -98,8 +109,15 @@ for (const vp of [{ w: 1400, h: 900, name: 'desktop' }, { w: 390, h: 844, name: 
       await p.click('th[data-key="hired"]'); const first1 = await p.$eval('tbody tr td', (td) => td.textContent);
       await p.click('th[data-key="hired"]'); const first2 = await p.$eval('tbody tr td', (td) => td.textContent);
       if (first1 === first2) note(`${vp.name}/${locale}: sort direction toggle had no effect`);
+      const firstRow = async () => p.$eval('tbody tr.row td', (td) => td.textContent);
+      const rowBefore = await firstRow();
       await p.click('[data-action="page"]:not([disabled])');
-      if (!(await p.$eval('.pager', (el) => el.textContent)).match(/2/)) note(`${vp.name}/${locale}: paging did not move`);
+      if ((await firstRow()) === rowBefore) note(`${vp.name}/${locale}: Next page did not change the rows`);
+      // Keyboard: Enter on a header sorts and keeps focus on that header.
+      await p.focus('th[data-key="name"]');
+      await p.keyboard.press('Enter');
+      const focusedKey = await p.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-key'));
+      if (focusedKey !== 'name') note(`${vp.name}/${locale}: keyboard sort lost focus`);
       // Theme and language toggles keep the current page.
       await p.click('[data-action="theme"]');
       await p.click('[data-action="locale"]');
@@ -108,10 +126,18 @@ for (const vp of [{ w: 1400, h: 900, name: 'desktop' }, { w: 390, h: 844, name: 
       // Mobile menu opens and closes.
       if (vp.name === 'phone') {
         await p.click('.menu-btn');
-        const open = await p.$('.sidebar.open');
-        if (!open) note('phone: menu did not open');
+        await p.waitForTimeout(250);
+        // The menu must really be on screen, not just carry an "open" class.
+        const onScreen = await p.$eval('.sidebar', (el) => {
+          const r = el.getBoundingClientRect();
+          return getComputedStyle(el).visibility === 'visible' && r.right > 10 && r.left < window.innerWidth - 10;
+        });
+        if (!onScreen) note(`phone/${locale}: menu did not appear on screen`);
+        const tabbableWhenClosed = async () => p.$eval('.sidebar', (el) => getComputedStyle(el).visibility !== 'hidden');
         await p.keyboard.press('Escape');
+        await p.waitForTimeout(250);
         if (await p.$('.sidebar.open')) note('phone: Escape did not close the menu');
+        if (await tabbableWhenClosed()) note(`phone/${locale}: closed menu is still reachable by keyboard`);
       }
       await p.close();
     }
@@ -124,7 +150,9 @@ await p.click('[data-action="signOut"]');
 if (!(await p.$('form[data-form="login"]'))) note('sign-out did not show the login form');
 await p.click('form[data-form="login"] button[type="submit"]');
 if (!(await p.$('.shell'))) note('sign-in did not return to the app');
-await b.close();
-fs.rmSync(dir, { recursive: true, force: true });
+} finally {
+  await b.close().catch(() => {});
+  fs.rmSync(dir, { recursive: true, force: true });
+}
 if (problems.size) { console.error([...problems].sort().join('\n')); process.exit(1); }
 console.log('UI sweep passed: no problems found.');

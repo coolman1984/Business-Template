@@ -100,7 +100,9 @@ input:focus-visible,select:focus-visible{border-color:var(--accent);box-shadow:0
 @media (max-width:960px){
   .sidebar{position:fixed;inset-block:0;height:auto;padding-top:env(safe-area-inset-top,0px);inset-inline-start:0;z-index:30;transform:translateX(-100%);transition:transform .18s var(--ease)}
   :root[dir=rtl] .sidebar{transform:translateX(100%)}
-  .sidebar.open{transform:none;box-shadow:0 0 40px hsl(var(--shadow)/.25)}
+  /* Closed menu is off-screen and out of the tab order; the open rule matches the RTL rule's specificity so it wins in Arabic too. */
+  .sidebar{visibility:hidden;transition:transform .18s var(--ease),visibility 0s linear .18s}
+  :root .sidebar.open,:root[dir=rtl] .sidebar.open{transform:none;visibility:visible;transition:transform .18s var(--ease);box-shadow:0 0 40px hsl(var(--shadow)/.25)}
   .scrim.open{display:block;position:fixed;inset:0;z-index:25;background:hsl(var(--shadow)/.35)}
   .menu-btn{display:inline-flex}
   .user .who{display:none}

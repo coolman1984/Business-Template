@@ -333,7 +333,7 @@
 
   var UNITS = {
     ton: b('طن', 't'), kg: b('كجم', 'kg'), pc: b('قطعة', 'pc'), roll: b('لفة', 'roll'), box: b('علبة', 'box'),
-    liter: b('لتر', 'L'), cylinder: b('أسطوانة', 'cyl'), pair: b('زوج', 'pair'), set: b('طقم', 'set'),
+    liter: b('لتر', 'L'), m: b('متر', 'm'), cylinder: b('أسطوانة', 'cyl'), pair: b('زوج', 'pair'), set: b('طقم', 'set'),
   };
   var ORIGINS = {
     EG: b('مصر', 'Egypt'), UA: b('أوكرانيا', 'Ukraine'), NO: b('النرويج', 'Norway'), IN: b('الهند', 'India'), ES: b('إسبانيا', 'Spain'),
@@ -491,6 +491,7 @@
         type: type, area: area, maker: maker, model: model, year: year, criticality: crit,
         status: 'running', pmBasis: pmBasis, pmInterval: pmInterval, meter: meter,
         lastPm: r.date(2026, '2026-09-20'),
+        meterAtLastPm: meter == null ? null : Math.max(0, meter - Math.round(pmInterval * r.between(0.05, 1.15))),
       };
       if (extra) for (var k in extra) a[k] = extra[k];
       list.push(a);
@@ -700,7 +701,7 @@
         var gender = idx === 0 && d[0] !== 'D12' && d[0] !== 'D13' ? 'M' : r.chance(d[5]) ? 'F' : 'M';
         var isHead = idx === 0;
         var shift = !d[4] || isHead ? 'D' : ['A', 'B', 'C'][idx % 3];
-        var level = isHead ? 'manager' : /Engineer|designer|specialist|officer|accountant|representative|Buyer/i.test(t[1]) ? 'professional' : /مشرف|supervisor|head|رئيس/i.test(t[0] + t[1]) ? 'supervisor' : /فني|technician/i.test(t[1]) ? 'technician' : 'worker';
+        var level = isHead || /manager|director|chairman|assistant gm/i.test(t[1]) ? 'manager' : /Engineer|secretary|designer|specialist|officer|accountant|representative|Buyer/i.test(t[1]) ? 'professional' : /مشرف|supervisor|head|رئيس/i.test(t[0] + t[1]) ? 'supervisor' : /فني|technician/i.test(t[1]) ? 'technician' : 'worker';
         var e = {
           id: 'EMP-' + pad(employees.length + 1, 4),
           name: personName(r, gender),
@@ -778,6 +779,7 @@
         var lim = limits[type];
         var credit = type === 'export' ? 0 : Math.round(r.between(lim[0], lim[1]) / 50000) * 50000;
         var reg = repByRegion[g[2]] || [];
+        var terms = type === 'export' ? 0 : type === 'showroom' ? r.pick([0, 15, 30]) : r.pick([30, 45, 60, 90]);
         var annual = { showroom: [8000, 40000], wholesale: [40000, 160000], distributor: [100000, 320000], contractor: [15000, 90000], project: [30000, 180000], export: [40000, 200000] }[type];
         dealers.push({
           id: 'DL-' + pad(dealers.length + 1, 3),
@@ -787,8 +789,8 @@
           region: g[2],
           repId: reg.length ? reg[dealers.length % reg.length] : null,
           creditLimit: credit,
-          paymentTermsDays: type === 'export' ? 0 : type === 'showroom' ? r.pick([0, 15, 30]) : r.pick([30, 45, 60, 90]),
-          paymentMethod: type === 'export' ? b('اعتماد مستندي', 'Letter of credit') : credit === 0 ? b('نقدي', 'Cash') : b('آجل', 'Credit'),
+          paymentTermsDays: terms,
+          paymentMethod: type === 'export' ? b('اعتماد مستندي', 'Letter of credit') : terms === 0 ? b('نقدي', 'Cash') : b('آجل', 'Credit'),
           priceList: type === 'export' ? 'EXP' : g[2] === 'cairo' || g[2] === 'gizaQal' ? 'CAI' : g[2].indexOf('upper') === 0 ? 'UPR' : 'DLT',
           class: r.weighted([['A', 2], ['B', 4], ['C', 4]]),
           annualTargetM2: Math.round(r.between(annual[0], annual[1]) / 500) * 500,

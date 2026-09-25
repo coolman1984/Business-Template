@@ -145,7 +145,11 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   // Latin digits in Arabic too: product codes, sizes and line names already use them, and mixing both scripts on one screen reads as a bug.
   function numLocale() { return state.locale === 'ar' ? 'ar-EG-u-nu-latn' : 'en-US'; }
-  function nf(digits) { return new Intl.NumberFormat(numLocale(), { maximumFractionDigits: digits == null ? 0 : digits }); }
+  var formatters = {};
+  function nf(digits) {
+    var key = state.locale + ':' + (digits == null ? 0 : digits);
+    return formatters[key] || (formatters[key] = new Intl.NumberFormat(numLocale(), { maximumFractionDigits: digits == null ? 0 : digits }));
+  }
   function num(n, digits) { return n == null ? '—' : nf(digits).format(n); }
   function year(n) { return new Intl.NumberFormat(numLocale(), { useGrouping: false }).format(n); }
   function pct() { return state.locale === 'ar' ? '٪' : '%'; }
@@ -321,12 +325,12 @@
         { key: 'code', label: 'c.code', sort: function (p) { return p.code; }, cell: function (p) { return '<span class="mono">' + esc(p.code) + '</span>'; } },
         { key: 'name', label: 'c.name', sort: function (p) { return L(DESIGN[p.designId].name); }, cell: function (p) { return '<div class="cell-main">' + esc(L(DESIGN[p.designId].name)) + '<small>' + esc(L(DB.finishes[p.finish].name)) + '</small></div>'; } },
         { key: 'size', label: 'c.size', sort: function (p) { return DB.sizes[p.sizeId].w * DB.sizes[p.sizeId].h; }, cell: function (p) { return '<span class="num">' + esc(L(DB.sizes[p.sizeId].label)) + '</span>'; } },
-        { key: 'family', label: 'c.family', sort: function (p) { return p.family; }, cell: function (p) { return esc(L(DB.families[p.family].name)); } },
+        { key: 'family', label: 'c.family', sort: function (p) { return L(DB.families[p.family].name); }, cell: function (p) { return esc(L(DB.families[p.family].name)); } },
         { key: 'line', label: 'c.line', sort: function (p) { return p.line; }, cell: function (p) { return esc(p.line); } },
         { key: 'g1', label: 'c.g1', end: true, sort: function (p) { return price(p, 'G1'); }, cell: function (p) { return '<span class="num">' + num(price(p, 'G1')) + '</span>'; } },
         { key: 'g2', label: 'c.g2', end: true, sort: function (p) { return price(p, 'G2'); }, cell: function (p) { return '<span class="num">' + num(price(p, 'G2')) + '</span>'; } },
         { key: 'cost', label: 'c.cost', end: true, sort: function (p) { return p.stdCostPerM2; }, cell: function (p) { return '<span class="num">' + num(p.stdCostPerM2) + '</span>'; } },
-        { key: 'status', label: 'c.status', sort: function (p) { return p.status; }, cell: function (p) { return statusChip(p.status); } },
+        { key: 'status', label: 'c.status', sort: function (p) { return t('s.' + p.status); }, cell: function (p) { return statusChip(p.status); } },
       ],
       note: function () { return t('perM2'); },
     },
@@ -340,8 +344,8 @@
       columns: [
         { key: 'code', label: 'c.code', sort: function (m) { return m.code; }, cell: function (m) { return '<span class="mono">' + esc(m.code) + '</span>'; } },
         { key: 'name', label: 'c.name', sort: function (m) { return L(m.name); }, cell: function (m) { return esc(L(m.name)); } },
-        { key: 'category', label: 'c.category', sort: function (m) { return m.category; }, cell: function (m) { return esc(L(DB.materialCategories[m.category])); } },
-        { key: 'origin', label: 'c.origin', sort: function (m) { return m.origin; }, cell: function (m) { return m.imported ? chip(L(DB.origins[m.origin]), 'accent') : chip(L(DB.origins[m.origin]), '', true); } },
+        { key: 'category', label: 'c.category', sort: function (m) { return L(DB.materialCategories[m.category]); }, cell: function (m) { return esc(L(DB.materialCategories[m.category])); } },
+        { key: 'origin', label: 'c.origin', sort: function (m) { return L(DB.origins[m.origin]); }, cell: function (m) { return m.imported ? chip(L(DB.origins[m.origin]), 'accent') : chip(L(DB.origins[m.origin]), '', true); } },
         { key: 'supplier', label: 'c.supplier', sort: function (m) { return supplierName(m.supplierId); }, cell: function (m) { return esc(supplierName(m.supplierId)); } },
         { key: 'cost', label: 'c.stdCost', end: true, sort: function (m) { return m.stdCost; }, cell: function (m) { return '<span class="num">' + num(m.stdCost) + ' / ' + esc(unit(m.unit)) + '</span>'; } },
         { key: 'min', label: 'c.minStock', end: true, sort: function (m) { return m.minStock; }, cell: function (m) { return '<span class="num">' + num(m.minStock) + ' ' + esc(unit(m.unit)) + '</span>'; } },
@@ -355,7 +359,7 @@
       columns: [
         { key: 'id', label: 'c.code', sort: function (r) { return r.id; }, cell: function (r) { return '<span class="mono">' + esc(r.id) + '</span>'; } },
         { key: 'name', label: 'c.name', sort: function (r) { return L(r.name); }, cell: function (r) { return esc(L(r.name)); } },
-        { key: 'kind', label: 'c.type', sort: function (r) { return r.kind; }, cell: function (r) { return chip(t(r.kind), r.kind === 'body' ? 'glaze' : 'accent', true); } },
+        { key: 'kind', label: 'c.type', sort: function (r) { return t(r.kind); }, cell: function (r) { return chip(t(r.kind), r.kind === 'body' ? 'glaze' : 'accent', true); } },
         { key: 'version', label: 'c.version', end: true, sort: function (r) { return r.version; }, cell: function (r) { return '<span class="num">v' + r.version + '</span>'; } },
         { key: 'items', label: 'c.items', end: true, sort: function (r) { return r.lines.length; }, cell: function (r) { return '<span class="num">' + num(r.lines.length) + '</span>'; } },
         { key: 'used', label: 'c.usedBy', end: true, sort: function (r) { return productsUsingRecipe(r.id).length; }, cell: function (r) { return '<span class="num">' + num(productsUsingRecipe(r.id).length) + '</span>'; } },
@@ -372,12 +376,12 @@
       columns: [
         { key: 'code', label: 'c.code', sort: function (a) { return a.code; }, cell: function (a) { return '<span class="mono">' + esc(a.code) + '</span>'; } },
         { key: 'name', label: 'c.name', sort: function (a) { return L(DB.assetTypes[a.type]); }, cell: function (a) { return esc(L(DB.assetTypes[a.type])); } },
-        { key: 'area', label: 'c.area', sort: function (a) { return a.area; }, cell: function (a) { return esc(L(DB.areas[a.area])); } },
+        { key: 'area', label: 'c.area', sort: function (a) { return L(DB.areas[a.area]); }, cell: function (a) { return esc(L(DB.areas[a.area])); } },
         { key: 'maker', label: 'c.maker', sort: function (a) { return a.maker; }, cell: function (a) { return '<div class="cell-main"><span>' + esc(a.maker) + '</span><small dir="ltr">' + esc(a.model) + '</small></div>'; } },
         { key: 'year', label: 'c.year', end: true, sort: function (a) { return a.year; }, cell: function (a) { return '<span class="num">' + year(a.year) + '</span>'; } },
         { key: 'crit', label: 'c.crit', sort: function (a) { return a.criticality; }, cell: function (a) { return chip(a.criticality, a.criticality === 'A' ? 'bad' : a.criticality === 'B' ? 'warn' : '', true); } },
-        { key: 'pm', label: 'c.pm', sort: function (a) { return a.pmBasis; }, cell: function (a) { return '<span class="small">' + esc(t('pm.' + a.pmBasis, { n: num(a.pmInterval) })) + '</span>'; } },
-        { key: 'status', label: 'c.status', sort: function (a) { return a.status; }, cell: function (a) { return statusChip(a.status); } },
+        { key: 'pm', label: 'c.pm', sort: function (a) { return t('pm.' + a.pmBasis, { n: '' }); }, cell: function (a) { return '<span class="small">' + esc(t('pm.' + a.pmBasis, { n: num(a.pmInterval) })) + '</span>'; } },
+        { key: 'status', label: 'c.status', sort: function (a) { return t('s.' + a.status); }, cell: function (a) { return statusChip(a.status); } },
       ],
     },
     spareParts: {
@@ -394,7 +398,7 @@
       columns: [
         { key: 'id', label: 'c.code', sort: function (p) { return p.id; }, cell: function (p) { return '<span class="mono">' + esc(p.id) + '</span>'; } },
         { key: 'name', label: 'c.name', sort: function (p) { return L(p.name); }, cell: function (p) { return esc(L(p.name)); } },
-        { key: 'for', label: 'c.for', sort: function (p) { return p.assetType; }, cell: function (p) { return '<span class="small">' + esc(p.assetType === '*' ? t('anyEquipment') : L(DB.assetTypes[p.assetType])) + '</span>'; } },
+        { key: 'for', label: 'c.for', sort: function (p) { return p.assetType === '*' ? t('anyEquipment') : L(DB.assetTypes[p.assetType]); }, cell: function (p) { return '<span class="small">' + esc(p.assetType === '*' ? t('anyEquipment') : L(DB.assetTypes[p.assetType])) + '</span>'; } },
         { key: 'stock', label: 'c.stock', end: true, sort: function (p) { return p.onHand - p.minStock; }, cell: function (p) { return '<span class="num">' + num(p.onHand) + ' / ' + num(p.minStock) + '</span> ' + (p.onHand < p.minStock ? chip(t('s.belowMin'), 'bad') : ''); } },
         { key: 'cost', label: 'c.stdCost', end: true, sort: function (p) { return p.unitCost; }, cell: function (p) { return '<span class="num">' + num(p.unitCost) + '</span>'; } },
         { key: 'critical', label: 'c.crit', sort: function (p) { return p.critical ? 0 : 1; }, cell: function (p) { return p.critical ? chip(t('s.critical'), 'warn', true) : ''; } },
@@ -407,7 +411,7 @@
       columns: [
         { key: 'id', label: 'c.code', sort: function (w) { return w.id; }, cell: function (w) { return '<span class="mono">' + esc(w.id) + '</span>'; } },
         { key: 'name', label: 'c.name', sort: function (w) { return L(w.name); }, cell: function (w) { return esc(L(w.name)); } },
-        { key: 'site', label: 'c.site', sort: function (w) { return w.site; }, cell: function (w) { return esc(L(DB.sites.filter(function (s) { return s.id === w.site; })[0].name)); } },
+        { key: 'site', label: 'c.site', sort: function (w) { return L(DB.sites.filter(function (s) { return s.id === w.site; })[0].name); }, cell: function (w) { return esc(L(DB.sites.filter(function (s) { return s.id === w.site; })[0].name)); } },
         { key: 'keeper', label: 'c.keeper', sort: function (w) { return L(by.employees[w.keeperId].name); }, cell: function (w) { return esc(L(by.employees[w.keeperId].name)); } },
         { key: 'loc', label: 'c.locations', end: true, sort: function (w) { return w.locations; }, cell: function (w) { return '<span class="num">' + num(w.locations) + '</span>'; } },
         { key: 'cap', label: 'c.capacity', sort: function (w) { return w.areaM2; }, cell: function (w) { return esc(L(w.capacity)); } },
@@ -424,8 +428,8 @@
       columns: [
         { key: 'id', label: 'c.code', sort: function (s) { return s.id; }, cell: function (s) { return '<span class="mono">' + esc(s.id) + '</span>'; } },
         { key: 'name', label: 'c.name', sort: function (s) { return L(s.name); }, cell: function (s) { return '<div class="cell-main">' + esc(L(s.name)) + '<small>' + esc(L(s.city)) + '</small></div>'; } },
-        { key: 'category', label: 'c.category', sort: function (s) { return s.category; }, cell: function (s) { return esc(L(DB.supplierCategories[s.category])); } },
-        { key: 'country', label: 'c.country', sort: function (s) { return s.country; }, cell: function (s) { return esc(L(DB.origins[s.country])); } },
+        { key: 'category', label: 'c.category', sort: function (s) { return L(DB.supplierCategories[s.category]); }, cell: function (s) { return esc(L(DB.supplierCategories[s.category])); } },
+        { key: 'country', label: 'c.country', sort: function (s) { return L(DB.origins[s.country]); }, cell: function (s) { return esc(L(DB.origins[s.country])); } },
         { key: 'terms', label: 'c.terms', sort: function (s) { return s.paymentTermsDays; }, cell: function (s) { return esc(s.paymentTermsDays ? days(s.paymentTermsDays) : L(s.paymentMethod)); } },
         { key: 'rating', label: 'c.rating', sort: function (s) { return s.rating; }, cell: function (s) { return chip(s.rating, s.rating === 'A' ? 'pos' : s.rating === 'B' ? '' : 'warn', true); } },
         { key: 'lead', label: 'c.lead', end: true, sort: function (s) { return s.leadTimeDays; }, cell: function (s) { return '<span class="num">' + days(s.leadTimeDays) + '</span>'; } },
@@ -448,7 +452,7 @@
         { key: 'credit', label: 'c.credit', end: true, sort: function (d) { return d.creditLimit; }, cell: function (d) { return '<span class="num">' + (d.creditLimit ? num(d.creditLimit) : '—') + '</span>'; } },
         { key: 'terms', label: 'c.terms', sort: function (d) { return d.paymentTermsDays; }, cell: function (d) { return esc(d.paymentTermsDays ? days(d.paymentTermsDays) : L(d.paymentMethod)); } },
         { key: 'class', label: 'c.class', sort: function (d) { return d.class; }, cell: function (d) { return chip(d.class, d.class === 'A' ? 'glaze' : '', true); } },
-        { key: 'status', label: 'c.status', sort: function (d) { return d.status; }, cell: function (d) { return statusChip(d.status); } },
+        { key: 'status', label: 'c.status', sort: function (d) { return t('s.' + d.status); }, cell: function (d) { return statusChip(d.status); } },
       ],
     },
     employees: {
@@ -463,11 +467,11 @@
       columns: [
         { key: 'id', label: 'c.code', sort: function (e) { return e.id; }, cell: function (e) { return '<span class="mono">' + esc(e.id) + '</span>'; } },
         { key: 'name', label: 'c.name', sort: function (e) { return L(e.name); }, cell: function (e) { return esc(L(e.name)); } },
-        { key: 'dept', label: 'c.dept', sort: function (e) { return e.departmentId; }, cell: function (e) { return esc(L(by.departments[e.departmentId].name)); } },
+        { key: 'dept', label: 'c.dept', sort: function (e) { return L(by.departments[e.departmentId].name); }, cell: function (e) { return esc(L(by.departments[e.departmentId].name)); } },
         { key: 'title', label: 'c.title', sort: function (e) { return L(e.title); }, cell: function (e) { return '<span class="small">' + esc(L(e.title)) + '</span>'; } },
         { key: 'shift', label: 'c.shift', sort: function (e) { return e.shift; }, cell: function (e) { return esc(L(DB.company.shifts.filter(function (s) { return s.id === e.shift; })[0].name)) + (e.line ? ' <span class="muted small">· ' + e.line + '</span>' : ''); } },
         { key: 'hired', label: 'c.hired', end: true, sort: function (e) { return e.hireDate; }, cell: function (e) { return '<span class="num small">' + esc(date(e.hireDate)) + '</span>'; } },
-        { key: 'status', label: 'c.status', sort: function (e) { return e.status; }, cell: function (e) { return statusChip(e.status); } },
+        { key: 'status', label: 'c.status', sort: function (e) { return t('s.' + e.status); }, cell: function (e) { return statusChip(e.status); } },
       ],
     },
   };
@@ -517,6 +521,11 @@
       '<div class="pager"><span>' + esc(t('count', { shown: num(rows.length), total: num(total) })) + note + '</span>' +
       (pages > 1 ? '<span class="btns"><span>' + esc(t('pageOf', { p: num(st.page), n: num(pages) })) + '</span><button data-action="page" data-list="' + id + '" data-to="' + (st.page - 1) + '"' + (st.page <= 1 ? ' disabled' : '') + '>' + esc(t('prev')) + '</button><button data-action="page" data-list="' + id + '" data-to="' + (st.page + 1) + '"' + (st.page >= pages ? ' disabled' : '') + '>' + esc(t('next')) + '</button></span>' : '') +
       '</div></div>';
+  }
+  function refocus(selector, preferLast) {
+    var found = document.querySelectorAll('#listBody ' + selector);
+    var target = found.length ? found[preferLast ? found.length - 1 : 0] : null;
+    if (target) target.focus();
   }
   function refreshListBody(id) { var el = document.getElementById('listBody'); if (el) el.innerHTML = renderListBody(id); }
 
@@ -706,7 +715,8 @@
         var due = new Date(Date.parse(a.lastPm + 'T00:00:00Z') + a.pmInterval * 864e5).toISOString().slice(0, 10);
         next = esc(date(due)) + (due < DB.referenceDate ? ' <span class="chip bad">' + esc(t('pm.overdue')) + '</span>' : '');
       } else {
-        next = esc(t('pm.atMeter', { n: num(Math.ceil((a.meter + 1) / a.pmInterval) * a.pmInterval), u: t('pm.unit.' + a.pmBasis) }));
+        var dueAt = a.meterAtLastPm + a.pmInterval;
+        next = esc(t('pm.atMeter', { n: num(dueAt), u: t('pm.unit.' + a.pmBasis) })) + (a.meter >= dueAt ? ' <span class="chip bad">' + esc(t('pm.overdue')) + '</span>' : '');
       }
       var body = facts([
         [t('c.area'), esc(L(DB.areas[a.area]))], [t('c.maker'), '<span dir="ltr">' + esc(a.maker + ' ' + a.model) + '</span>'],
@@ -867,7 +877,10 @@
     syncBodyLock();
     if (keepScroll) window.scrollTo(0, y);
   }
-  function syncBodyLock() { document.body.classList.toggle('locked', state.drawer.length > 0 || state.navOpen); }
+  function syncBodyLock() {
+    var menuOverlay = state.navOpen && window.matchMedia && window.matchMedia('(max-width: 960px)').matches;
+    document.body.classList.toggle('locked', state.drawer.length > 0 || !!menuOverlay);
+  }
   function rerenderDrawer() {
     syncBodyLock();
     var old = document.querySelectorAll('.drawer, .drawer-scrim');
@@ -920,11 +933,14 @@
       var id = el.getAttribute('data-list'), key = el.getAttribute('data-key'), st = listState(id);
       if (st.sort === key) st.dir = -st.dir; else { st.sort = key; st.dir = 1; }
       refreshListBody(id);
+      refocus('th[data-key="' + key + '"]');
     },
     page: function (el) {
       var id = el.getAttribute('data-list');
+      var forward = Number(el.getAttribute('data-to')) > listState(id).page;
       listState(id).page = Number(el.getAttribute('data-to'));
       refreshListBody(id);
+      refocus('[data-action="page"]:not([disabled])' , forward);
     },
     codesTab: function (el) { state.codesTab = el.getAttribute('data-tab'); render(true); },
   };
@@ -978,6 +994,10 @@
     if (mq.addEventListener) mq.addEventListener('change', onScheme);
   }
 
+  window.addEventListener('hashchange', function () {
+    var id = (location.hash || '').slice(1);
+    if (pageExists(id) && id !== state.page) { state.page = id; state.drawer = []; state.navOpen = false; render(); }
+  });
   var fromHash = (location.hash || '').slice(1);
   if (pageExists(fromHash)) state.page = fromHash;
   render();

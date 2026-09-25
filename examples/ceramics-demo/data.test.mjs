@@ -94,3 +94,30 @@ test('the demo storyline hooks exist', () => {
   assert.ok(db.assets.some((a) => a.status === 'maintenance'));
   assert.ok(db.spareParts.some((p) => p.onHand < p.minStock));
 });
+
+test('executives are managers, and only the secretary is not', () => {
+  for (const e of db.employees.filter((x) => x.departmentId === 'D01')) {
+    assert.equal(e.level, e.title.en === 'Executive secretary' ? 'professional' : 'manager', e.title.en);
+  }
+});
+
+test('payment method follows payment terms', () => {
+  for (const d of db.dealers) {
+    if (d.type === 'export') assert.equal(d.paymentMethod.en, 'Letter of credit', d.id);
+    else assert.equal(d.paymentMethod.en, d.paymentTermsDays === 0 ? 'Cash' : 'Credit', d.id);
+  }
+});
+
+test('every unit used has a label in both languages', () => {
+  for (const x of [...db.materials, ...db.spareParts]) {
+    assert.ok(db.units[x.unit] && db.units[x.unit].ar && db.units[x.unit].en, `${x.id} uses unit ${x.unit}`);
+  }
+});
+
+test('meter-based maintenance has a sane last-service reading', () => {
+  const metered = db.assets.filter((a) => a.meter != null);
+  assert.ok(metered.length > 0);
+  for (const a of metered) assert.ok(a.meterAtLastPm >= 0 && a.meterAtLastPm <= a.meter, a.code);
+  assert.ok(metered.some((a) => a.meter >= a.meterAtLastPm + a.pmInterval), 'at least one metered service is due');
+  assert.ok(metered.some((a) => a.meter < a.meterAtLastPm + a.pmInterval), 'at least one metered service is not yet due');
+});
