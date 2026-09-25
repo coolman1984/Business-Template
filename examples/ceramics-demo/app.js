@@ -4,7 +4,7 @@
 
   var DB = globalThis.CeramicData.generate();
   var PAGE_SIZE = 25;
-  var DONE_PHASES = ['A1', 'A2'];
+  var DONE_PHASES = ['A1', 'A2', 'A3'];
 
   // ================================================================ i18n
   var UI = {
@@ -36,6 +36,7 @@
       'c.source': 'مصدر العيب', 'c.level': 'المستوى', 'pm.unit.hours': 'ساعة', 'pm.unit.strokes': 'كبسة', 'pm.overdue': 'متأخرة', 'pm.atMeter': 'عند {n} {u}', 'c.planned': 'مخطط؟', 'c.days': '{n} يوم', 'c.target': 'المستهدف السنوي',
       'c.date': 'التاريخ', 'c.product': 'المنتج', 'c.pressedM2': 'مكبوس م²', 'c.kilnOutM2': 'خارج الفرن م²', 'c.firstPct': 'فرز أول٪', 'c.downtimeMin': 'توقف (دقيقة)', 'c.gasM3': 'غاز م³',
       'c.test': 'الاختبار', 'c.value': 'القيمة', 'c.result': 'النتيجة', 'c.ref': 'المرجع',
+      'c.lot': 'اللوط', 'c.grade': 'الفرز', 'c.shade': 'درجة اللون', 'c.m2': 'م²', 'c.available': 'المتاح',
       // statuses
       's.active': 'نشط', 's.new': 'جديد', 's.discontinued': 'متوقف', 's.running': 'شغال', 's.maintenance': 'في الصيانة', 's.standby': 'احتياطي', 's.onLeave': 'إجازة', 's.suspended': 'موقوف',
       's.creditHold': 'موقوف ائتمانيًا', 's.inactive': 'غير نشط', 's.belowMin': 'تحت الحد', 's.ok': 'كافي', 's.critical': 'حرجة', 's.pass': 'مطابق', 's.fail': 'غير مطابق',
@@ -69,6 +70,16 @@
       'qual.sub': 'نسبة نجاح الاختبارات وأكثر العيوب تكرارًا والتقارير المفتوحة.', 'qual.kpi.first7': 'فرز أول (٧ أيام)', 'qual.kpi.passRate30': 'نجاح الاختبارات (٣٠ يوم)',
       'qual.kpi.openNcr': 'تقارير عدم مطابقة مفتوحة', 'qual.kpi.downgraded30': 'م² متنازل عنها (٣٠ يوم)', 'qual.defectTitle': 'أكثر العيوب (٣٠ يوم)', 'qual.passTrendTitle': 'نسبة نجاح اختبار المنتج التام — آخر ٤٥ يوم',
       'qual.ncrTitle': 'تقارير عدم المطابقة المفتوحة', 'qual.noNcr': 'مفيش تقارير عدم مطابقة مفتوحة.', 'qual.labLogTitle': 'سجل اختبارات المعمل',
+      // A3 pages
+      'c.mill': 'الطاحونة', 'c.recipe': 'التركيبة', 'c.week': 'بداية الأسبوع', 'qc.offSpec': 'خارج المواصفة',
+      'plan.sub': 'الخطة الأسبوعية لكل خط مقابل المنفذ فعليًا.', 'plan.kpi.adherence': 'الالتزام بالخطة (الأسبوع الحالي)', 'plan.kpi.actual': 'المنفذ (الأسبوع الحالي)',
+      'plan.kpi.planned': 'المخطط (الأسبوع الحالي)', 'plan.kpi.behind': 'خطوط متأخرة عن الخطة', 'plan.byLineTitle': 'الالتزام بالخطة حسب الخط (الأسبوع الحالي)',
+      'plan.tableTitle': 'الخطة الأسبوعية لكل خط', 'plan.plannedM2': 'مخطط م²', 'plan.actualM2': 'منفذ م²', 'plan.adherence': 'الالتزام', 'plan.upcoming': 'قادم',
+      'prep.sub': 'تشغيلات الطواحين وتقرير الأتومايزر مقابل القيم المستهدفة.', 'prep.kpi.batches7': 'تشغيلات طاحونة (٧ أيام)', 'prep.kpi.tonnesDay': 'متوسط طن/يوم',
+      'prep.tonUnit': 'طن', 'prep.kpi.moisture': 'متوسط رطوبة البودرة', 'prep.kpi.offSpec': 'تشغيلات خارج المواصفة', 'prep.millTitle': 'تشغيلات الطواحين (٧ أيام)',
+      'prep.chargeT': 'الشحنة (طن)', 'prep.atomTitle': 'تقرير الأتومايزر (٧ أيام)', 'prep.throughputT': 'الإنتاجية (طن)',
+      'glaze.sub': 'تشغيلات الجليز والإنجوب مقابل القيم المستهدفة.', 'glaze.kpi.batches7': 'تشغيلات جليز (٧ أيام)', 'glaze.kpi.kg7': 'كجم جليز (٧ أيام)',
+      'glaze.kpi.offSpec': 'تشغيلات خارج المواصفة', 'glaze.tableTitle': 'تشغيلات الجليز (٧ أيام)', 'glaze.kg': 'الشحنة (كجم)',
       // drawer
       'd.packing': 'التعبئة', 'd.pcsBox': 'بلاطة في الكرتونة', 'd.m2Box': 'م² في الكرتونة', 'd.kgBox': 'وزن الكرتونة', 'd.boxesPallet': 'كرتونة في الباليتة', 'd.m2Pallet': 'م² في الباليتة',
       'd.thickness': 'السُمك', 'd.prices': 'الأسعار حسب الفرز وقائمة الأسعار', 'd.perBox': 'للكرتونة', 'd.margin': 'هامش الفرز الأول', 'd.production': 'الإنتاج',
@@ -84,7 +95,9 @@
       'd.gas': 'استهلاك الغاز', 'd.supervisor': 'مشرف الوردية', 'd.downtimeEvents': 'أحداث التوقف', 'd.shiftDefects': 'العيوب المسجلة', 'd.testStandard': 'المعيار', 'd.testSpec': 'المواصفة',
       'd.testValue': 'القيمة المقاسة', 'd.testRef': 'المرجع', 'd.testBy': 'قام بالاختبار',
       'k.product': 'منتج', 'k.material': 'خامة', 'k.recipe': 'تركيبة', 'k.asset': 'معدة', 'k.part': 'قطعة غيار', 'k.warehouse': 'مخزن', 'k.supplier': 'مورد', 'k.dealer': 'عميل', 'k.employee': 'موظف',
-      'k.shiftReport': 'تقرير وردية', 'k.labTest': 'اختبار معمل',
+      'k.shiftReport': 'تقرير وردية', 'k.labTest': 'اختبار معمل', 'k.lot': 'لوط',
+      'sort.shiftReport': 'تقرير الوردية', 'sort.quantities': 'الكميات', 'sort.boxes': 'كراتين', 'sort.reserved': 'محجوز', 'sort.dispatched': 'تم شحنه',
+      'p.sortingLots': 'الفرز والتعبئة', 'p.sortingLots.sub': 'ناتج الفرز بالفرز ودرجة اللون والمقاس، وما هو متاح منه للحجز.',
     },
     en: {
       'brand.sub': 'Factory management system', 'demo.note': 'Demo — every name and number here is fictional and belongs to no real factory.', 'demo.tag': 'Demo',
@@ -112,6 +125,7 @@
       'c.source': 'Defect source', 'c.level': 'Level', 'pm.unit.hours': 'hours', 'pm.unit.strokes': 'strokes', 'pm.overdue': 'Overdue', 'pm.atMeter': 'at {n} {u}', 'c.planned': 'Planned?', 'c.days': '{n} days', 'c.target': 'Annual target',
       'c.date': 'Date', 'c.product': 'Product', 'c.pressedM2': 'Pressed m²', 'c.kilnOutM2': 'Kiln-out m²', 'c.firstPct': 'First-choice %', 'c.downtimeMin': 'Downtime (min)', 'c.gasM3': 'Gas m³',
       'c.test': 'Test', 'c.value': 'Value', 'c.result': 'Result', 'c.ref': 'Reference',
+      'c.lot': 'Lot', 'c.grade': 'Grade', 'c.shade': 'Shade', 'c.m2': 'm²', 'c.available': 'Available',
       's.active': 'Active', 's.new': 'New', 's.discontinued': 'Discontinued', 's.running': 'Running', 's.maintenance': 'In maintenance', 's.standby': 'Standby', 's.onLeave': 'On leave', 's.suspended': 'Suspended',
       's.creditHold': 'Credit hold', 's.inactive': 'Inactive', 's.belowMin': 'Below minimum', 's.ok': 'Sufficient', 's.critical': 'Critical', 's.pass': 'Pass', 's.fail': 'Fail',
       'pm.hours': 'Every {n} running hours', 'pm.strokes': 'Every {n} strokes', 'pm.calendar': 'Every {n} days',
@@ -143,6 +157,16 @@
       'qual.sub': 'Test pass rate, the most frequent defects and open non-conformance reports.', 'qual.kpi.first7': 'First-choice rate (7d)', 'qual.kpi.passRate30': 'Test pass rate (30d)',
       'qual.kpi.openNcr': 'Open non-conformance reports', 'qual.kpi.downgraded30': 'm² downgraded (30d)', 'qual.defectTitle': 'Most frequent defects (30d)', 'qual.passTrendTitle': 'Finished-product pass rate — last 45 days',
       'qual.ncrTitle': 'Open non-conformance reports', 'qual.noNcr': 'No open non-conformance reports.', 'qual.labLogTitle': 'Lab test log',
+      // A3 pages
+      'c.mill': 'Mill', 'c.recipe': 'Recipe', 'c.week': 'Week starting', 'qc.offSpec': 'Off spec',
+      'plan.sub': 'The weekly plan for each line against what was actually run.', 'plan.kpi.adherence': 'Plan adherence (current week)', 'plan.kpi.actual': 'Actual (current week)',
+      'plan.kpi.planned': 'Planned (current week)', 'plan.kpi.behind': 'Lines behind plan', 'plan.byLineTitle': 'Plan adherence by line (current week)',
+      'plan.tableTitle': 'Weekly plan by line', 'plan.plannedM2': 'Planned m²', 'plan.actualM2': 'Actual m²', 'plan.adherence': 'Adherence', 'plan.upcoming': 'Upcoming',
+      'prep.sub': 'Mill runs and the atomizer report against their lab targets.', 'prep.kpi.batches7': 'Mill runs (7d)', 'prep.kpi.tonnesDay': 'Average tonnes/day',
+      'prep.tonUnit': 't', 'prep.kpi.moisture': 'Average powder moisture', 'prep.kpi.offSpec': 'Runs off spec', 'prep.millTitle': 'Mill runs (7d)',
+      'prep.chargeT': 'Charge (t)', 'prep.atomTitle': 'Atomizer report (7d)', 'prep.throughputT': 'Throughput (t)',
+      'glaze.sub': 'Glaze and engobe batches against their lab targets.', 'glaze.kpi.batches7': 'Glaze batches (7d)', 'glaze.kpi.kg7': 'Glaze kg (7d)',
+      'glaze.kpi.offSpec': 'Batches off spec', 'glaze.tableTitle': 'Glaze batches (7d)', 'glaze.kg': 'Batch (kg)',
       'd.packing': 'Packing', 'd.pcsBox': 'Tiles per box', 'd.m2Box': 'm² per box', 'd.kgBox': 'Box weight', 'd.boxesPallet': 'Boxes per pallet', 'd.m2Pallet': 'm² per pallet',
       'd.thickness': 'Thickness', 'd.prices': 'Prices by grade and price list', 'd.perBox': 'per box', 'd.margin': 'First-choice margin', 'd.production': 'Production',
       'd.bodyRecipe': 'Body recipe', 'd.glazeRecipe': 'Glaze recipe', 'd.faces': 'Design faces', 'd.ink': 'Ink', 'd.glazeWeight': 'Glaze', 'd.absorption': 'Absorption group (ISO 13006)',
@@ -157,7 +181,9 @@
       'd.gas': 'Gas used', 'd.supervisor': 'Shift supervisor', 'd.downtimeEvents': 'Downtime events', 'd.shiftDefects': 'Logged defects', 'd.testStandard': 'Standard', 'd.testSpec': 'Specification',
       'd.testValue': 'Measured value', 'd.testRef': 'Reference', 'd.testBy': 'Tested by',
       'k.product': 'Product', 'k.material': 'Material', 'k.recipe': 'Recipe', 'k.asset': 'Machine', 'k.part': 'Spare part', 'k.warehouse': 'Warehouse', 'k.supplier': 'Supplier', 'k.dealer': 'Customer', 'k.employee': 'Employee',
-      'k.shiftReport': 'Shift report', 'k.labTest': 'Lab test',
+      'k.shiftReport': 'Shift report', 'k.labTest': 'Lab test', 'k.lot': 'Lot',
+      'sort.shiftReport': 'Shift report', 'sort.quantities': 'Quantities', 'sort.boxes': 'Boxes', 'sort.reserved': 'Reserved', 'sort.dispatched': 'Dispatched',
+      'p.sortingLots': 'Sorting & packing', 'p.sortingLots.sub': 'Sorting output by grade, shade and caliber, and what is still available to reserve.',
     },
   };
 
@@ -275,19 +301,19 @@
       screens: [b('لوحة الصباح: إنتاج وفرز ومبيعات وتحصيل', 'Morning board: output, grades, sales, collections'), b('مقارنة الشهر بالخطة', 'Month against plan'), b('التنبيهات اللي محتاجة قرار', 'Alerts that need a decision'), b('موافقات الخصم وتجاوز الائتمان', 'Discount and credit-limit approvals')],
       kpis: [b('إنتاج م² اليوم والشهر', 'm² today and month to date'), b('نسبة الفرز الأول', 'First-choice rate'), b('المبيعات والتحصيل', 'Sales and collections'), b('غاز م³ لكل م²', 'Gas m³ per m²'), b('أيام تغطية المخزون', 'Days of stock cover')],
       uses: ['products', 'dealers', 'assets'] },
-    { id: 'planning', group: 'production', phase: 'A3', icon: 'calendar', name: b('التخطيط وجدولة الإنتاج', 'Planning & scheduling'),
+    { id: 'planning', group: 'production', icon: 'calendar', name: b('التخطيط وجدولة الإنتاج', 'Planning & scheduling'),
       screens: [b('خطة شهرية وأسبوعية لكل خط', 'Monthly and weekly plan per line'), b('جدول تغيير المقاسات والتصميمات', 'Size and design changeover schedule'), b('احتياجات الخامات والجليز من الخطة', 'Material and glaze needs from the plan'), b('الخطة مقابل الطلبيات المفتوحة', 'Plan against open orders')],
       kpis: [b('الالتزام بالخطة', 'Plan adherence'), b('عدد مرات التغيير ووقته', 'Changeovers and their time'), b('طلبيات متأخرة', 'Late orders')], uses: ['products', 'recipes'] },
-    { id: 'prep', group: 'production', phase: 'A3', icon: 'mill', name: b('تحضير الخامات', 'Body preparation'),
+    { id: 'prep', group: 'production', icon: 'mill', name: b('تحضير الخامات', 'Body preparation'),
       screens: [b('تشغيلات الطواحين: الشحنة والمية والمُسيّل والساعات', 'Mill runs: charge, water, deflocculant, hours'), b('تانكات الروبة وقياساتها', 'Slip tanks and readings'), b('تقرير الأتومايزر', 'Atomizer report'), b('أرصدة الصوامع', 'Silo levels')],
       kpis: [b('الكثافة والمتبقي', 'Density and residue'), b('رطوبة البودرة', 'Powder moisture'), b('طن بودرة في اليوم', 'Tonnes of powder a day'), b('الاستهلاك مقابل التركيبة', 'Consumption against recipe')], uses: ['recipes', 'materials', 'assets'] },
-    { id: 'glaze', group: 'production', phase: 'A3', icon: 'drop', name: b('الجليز والتصميمات', 'Glaze & designs'),
+    { id: 'glaze', group: 'production', icon: 'drop', name: b('الجليز والتصميمات', 'Glaze & designs'),
       screens: [b('تشغيلات الجليز والإنجوب', 'Glaze and engobe batches'), b('مكتبة التصميمات بإصداراتها ووجوهها', 'Design library with versions and faces'), b('أرصدة الأحبار لكل لون', 'Ink stock by colour'), b('أوزان الطبقات لكل منتج', 'Layer weights per product')],
       kpis: [b('جم حبر لكل م²', 'Ink g/m²'), b('كجم جليز لكل م²', 'Glaze kg/m²'), b('مبيعات كل تصميم', 'Sales by design')], uses: ['recipes', 'products', 'materials'] },
     { id: 'lines', group: 'production', icon: 'factory', name: b('خطوط الإنتاج', 'Production lines'),
       screens: [b('تقرير الوردية لكل خط', 'Shift report per line'), b('قراءات المكبس والفرن', 'Press and kiln readings'), b('التوقفات بأسبابها', 'Downtime with reasons'), b('الكسر في كل مرحلة', 'Breakage at each stage'), b('شاشة تابلت للعامل', 'Operator tablet screen')],
       kpis: [b('كفاءة المعدات الكلية', 'Overall equipment effectiveness'), b('ساعات التوقف', 'Downtime hours'), b('م² في الساعة', 'm² per hour'), b('كسر أخضر ومحروق', 'Green and fired breakage')], uses: ['assets', 'codes', 'products', 'employees'] },
-    { id: 'sorting', group: 'production', phase: 'A3', icon: 'layers', name: b('الفرز والتعبئة', 'Sorting & packing'),
+    { id: 'sorting', group: 'production', icon: 'layers', name: b('الفرز والتعبئة', 'Sorting & packing'),
       screens: [b('ناتج الفرز بالفرز ودرجة اللون والمقاس', 'Sorting output by grade, shade and caliber'), b('إنشاء لوط وملصق باليتة بباركود', 'Lot creation and barcoded pallet label'), b('التحويل للمخزن التام', 'Transfer to finished goods'), b('إعادة الفرز', 'Re-sorting')],
       kpis: [b('توزيع الفروز', 'Grade mix'), b('درجات اللون في اللوط', 'Shades per lot'), b('باليتات في الوردية', 'Pallets per shift')], uses: ['products', 'codes'] },
     { id: 'quality', group: 'quality', icon: 'flask', name: b('الجودة والمعمل', 'Quality & lab'),
@@ -556,6 +582,24 @@
         { key: 'stage', label: 'c.stage', sort: function (q) { return L(DB.codes.testStages[q.stage]); }, cell: function (q) { return esc(L(DB.codes.testStages[q.stage])); } },
         { key: 'value', label: 'c.value', end: true, sort: function (q) { return q.value; }, cell: function (q) { return '<span class="num">' + num(q.value, 2) + '</span>'; } },
         { key: 'result', label: 'c.result', sort: function (q) { return q.pass ? 0 : 1; }, cell: function (q) { return q.pass ? chip(t('s.pass'), 'pos') : chip(t('s.fail'), 'bad'); } },
+      ],
+    },
+    sortingLots: {
+      kind: 'lot', rows: function () { return DB.sortingLots; },
+      search: function (l) { return l.lotNumber + ' ' + l.line + ' ' + l.shade + ' ' + L(by.products[l.productId].name); },
+      filters: [
+        { key: 'line', label: 'c.line', options: function () { return DB.lines.map(function (l) { return [l.id, L(l.name)]; }); }, test: function (l, v) { return l.line === v; } },
+        { key: 'grade', label: 'c.grade', options: function () { return DB.grades.map(function (g) { return [g.id, L(g.name)]; }); }, test: function (l, v) { return l.grade === v; } },
+      ],
+      columns: [
+        { key: 'lotNumber', label: 'c.lot', sort: function (l) { return l.lotNumber; }, cell: function (l) { return '<span class="mono">' + esc(l.lotNumber) + '</span>'; } },
+        { key: 'date', label: 'c.date', sort: function (l) { return l.date; }, cell: function (l) { return '<span class="num small">' + esc(date(l.date)) + '</span>'; } },
+        { key: 'line', label: 'c.line', sort: function (l) { return L(LINE[l.line].name); }, cell: function (l) { return esc(L(LINE[l.line].name)); } },
+        { key: 'product', label: 'c.product', sort: function (l) { return L(by.products[l.productId].name); }, cell: function (l) { return esc(L(by.products[l.productId].name)); } },
+        { key: 'grade', label: 'c.grade', sort: function (l) { return l.grade; }, cell: function (l) { return chip(l.grade, l.grade === 'G1' ? 'pos' : l.grade === 'G2' ? 'warn' : 'bad', true); } },
+        { key: 'shade', label: 'c.shade', sort: function (l) { return l.shade; }, cell: function (l) { return '<span class="mono">' + esc(l.shade) + '</span>'; } },
+        { key: 'm2', label: 'c.m2', end: true, sort: function (l) { return l.m2; }, cell: function (l) { return '<span class="num">' + num(l.m2) + '</span>'; } },
+        { key: 'available', label: 'c.available', end: true, sort: function (l) { return l.m2 - l.reservedM2 - l.dispatchedM2; }, cell: function (l) { return '<span class="num">' + num(l.m2 - l.reservedM2 - l.dispatchedM2) + '</span>'; } },
       ],
     },
   };
@@ -889,6 +933,114 @@
       '<div class="row spread"><h2 style="margin:0">' + esc(t('qual.labLogTitle')) + '</h2></div>' + renderListPage('labTests', true);
   }
 
+  // ================================================================ A3 pages
+  function renderPlanningPage() {
+    var weekKeys = {}; DB.productionPlan.forEach(function (p) { weekKeys[p.weekStart] = true; });
+    var pastWeeks = Object.keys(weekKeys).filter(function (w) { return w <= DB.referenceDate; }).sort();
+    var currentWeekStart = pastWeeks[pastWeeks.length - 1];
+    var currentWeekRows = DB.productionPlan.filter(function (p) { return p.weekStart === currentWeekStart; });
+    var totalPlanned = sumField(currentWeekRows, 'plannedM2'), totalActual = sumField(currentWeekRows, 'actualM2');
+    var adherence = totalPlanned ? Math.round(totalActual / totalPlanned * 100) : 0;
+    var behindLines = currentWeekRows.filter(function (p) { return p.plannedM2 && p.actualM2 / p.plannedM2 < 0.9; });
+
+    var stats = statTiles([
+      { value: num(adherence) + pct(), label: t('plan.kpi.adherence') },
+      { value: num(totalActual) + ' ' + m2(), label: t('plan.kpi.actual') },
+      { value: num(totalPlanned) + ' ' + m2(), label: t('plan.kpi.planned') },
+      { value: num(behindLines.length), label: t('plan.kpi.behind') },
+    ]);
+
+    var byLineAdherence = DB.lines.map(function (l) {
+      var row = currentWeekRows.filter(function (p) { return p.line === l.id; })[0];
+      return { label: L(l.name), value: row && row.plannedM2 ? Math.round(row.actualM2 / row.plannedM2 * 100) : 0 };
+    });
+
+    var rows = DB.productionPlan.slice().sort(function (a, b) { return cmp(b.weekStart, a.weekStart) || cmp(a.line, b.line); });
+    var tableRows = rows.map(function (p) {
+      var future = p.weekStart > DB.referenceDate;
+      var pctVal = p.plannedM2 ? Math.round(p.actualM2 / p.plannedM2 * 100) : 0;
+      var tone = pctVal >= 95 ? 'pos' : pctVal >= 85 ? 'warn' : 'bad';
+      return '<tr><td class="num small">' + esc(date(p.weekStart)) + '</td><td>' + esc(L(LINE[p.line].name)) + '</td><td>' + esc(L(by.products[p.productId].name)) + '</td>' +
+        '<td class="end num">' + num(p.plannedM2) + '</td><td class="end num">' + (future ? '—' : num(p.actualM2)) + '</td>' +
+        '<td class="end">' + (future ? chip(t('plan.upcoming'), '', true) : chip(num(pctVal) + pct(), tone, true)) + '</td></tr>';
+    }).join('');
+    var table = '<div class="table-wrap"><table><thead><tr><th>' + esc(t('c.week')) + '</th><th>' + esc(t('c.line')) + '</th><th>' + esc(t('c.product')) + '</th>' +
+      '<th class="end">' + esc(t('plan.plannedM2')) + '</th><th class="end">' + esc(t('plan.actualM2')) + '</th><th class="end">' + esc(t('plan.adherence')) + '</th></tr></thead><tbody>' + tableRows + '</tbody></table></div>';
+
+    return pageHead(L(MODULE_BY_ID.planning.name), t('plan.sub'), 'g.production') + stats +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('plan.byLineTitle')) + '</h2></div>' + rankBars(byLineAdherence, { format: function (v) { return num(v) + pct(); } }) + '</section>' +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('plan.tableTitle')) + '</h2></div>' + table + '</section>';
+  }
+
+  function renderPrepPage() {
+    var last7 = new Set(WINDOW.slice(-7));
+    var recent = DB.millBatches.filter(function (b) { return last7.has(b.date); }).sort(function (a, b) { return cmp(b.date, a.date); });
+    var atomRecent = DB.atomizerRuns.filter(function (a) { return last7.has(a.date); });
+    var tonnesDay = recent.length ? round2(sumField(recent, 'chargeTons') / 7) : 0;
+    var avgMoisture = atomRecent.length ? round2(sumField(atomRecent, 'powderMoisture') / atomRecent.length) : 0;
+    var offSpec = recent.filter(function (b) {
+      var tg = by.recipes[b.recipeId].targets;
+      return b.slipDensity < tg.slipDensity[0] || b.slipDensity > tg.slipDensity[1] || b.residue63 < tg.residue63[0] || b.residue63 > tg.residue63[1];
+    });
+
+    var stats = statTiles([
+      { value: num(recent.length), label: t('prep.kpi.batches7') },
+      { value: num(tonnesDay, 1) + ' ' + t('prep.tonUnit'), label: t('prep.kpi.tonnesDay') },
+      { value: num(avgMoisture, 1) + pct(), label: t('prep.kpi.moisture') },
+      { value: num(offSpec.length), label: t('prep.kpi.offSpec') },
+    ]);
+
+    var millRows = recent.slice(0, 30).map(function (b) {
+      var recipe = by.recipes[b.recipeId], tg = recipe.targets;
+      var ok = b.slipDensity >= tg.slipDensity[0] && b.slipDensity <= tg.slipDensity[1] && b.residue63 >= tg.residue63[0] && b.residue63 <= tg.residue63[1];
+      return '<tr><td class="num small">' + esc(date(b.date)) + '</td><td>' + openLink('asset', b.millAssetId, by.assets[b.millAssetId].code) + '</td>' +
+        '<td>' + openLink('recipe', b.recipeId, L(recipe.name) + ' v' + recipe.version) + '</td>' +
+        '<td class="end num">' + num(b.chargeTons) + '</td><td class="end num">' + num(b.slipDensity) + '</td><td class="end num">' + num(b.residue63, 1) + '</td>' +
+        '<td>' + (ok ? chip(t('s.ok'), 'pos', true) : chip(t('qc.offSpec'), 'bad', true)) + '</td></tr>';
+    }).join('');
+    var millTable = '<div class="table-wrap"><table><thead><tr><th>' + esc(t('c.date')) + '</th><th>' + esc(t('c.mill')) + '</th><th>' + esc(t('c.recipe')) + '</th>' +
+      '<th class="end">' + esc(t('prep.chargeT')) + '</th><th class="end">' + esc(t('d.slipDensity')) + '</th><th class="end">' + esc(t('d.residue')) + '</th><th>' + esc(t('c.status')) + '</th></tr></thead><tbody>' + millRows + '</tbody></table></div>';
+
+    var atomRows = atomRecent.slice().sort(function (a, b) { return cmp(b.date, a.date); }).map(function (a) {
+      return '<tr><td class="num small">' + esc(date(a.date)) + '</td><td class="end num">' + num(a.powderMoisture, 1) + '</td><td class="end num">' + num(a.throughputTons) + '</td></tr>';
+    }).join('');
+    var atomTable = '<div class="table-wrap"><table><thead><tr><th>' + esc(t('c.date')) + '</th><th class="end">' + esc(t('d.powderMoisture')) + '</th><th class="end">' + esc(t('prep.throughputT')) + '</th></tr></thead><tbody>' + atomRows + '</tbody></table></div>';
+
+    return pageHead(L(MODULE_BY_ID.prep.name), t('prep.sub'), 'g.production') + stats +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('prep.millTitle')) + '</h2></div>' + millTable + '</section>' +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('prep.atomTitle')) + '</h2></div>' + atomTable + '</section>';
+  }
+
+  function renderGlazePage() {
+    var last7 = new Set(WINDOW.slice(-7));
+    var recent = DB.glazeBatches.filter(function (b) { return last7.has(b.date); }).sort(function (a, b) { return cmp(b.date, a.date); });
+    var offSpec = recent.filter(function (b) {
+      var tg = by.recipes[b.recipeId].targets;
+      return b.density < tg.density[0] || b.density > tg.density[1] || b.viscositySec < tg.viscositySec[0] || b.viscositySec > tg.viscositySec[1];
+    });
+    var totalKg7 = sumField(recent, 'batchKg');
+
+    var stats = statTiles([
+      { value: num(recent.length), label: t('glaze.kpi.batches7') },
+      { value: num(totalKg7), label: t('glaze.kpi.kg7') },
+      { value: num(offSpec.length), label: t('glaze.kpi.offSpec') },
+    ]);
+
+    var rows = recent.slice(0, 30).map(function (b) {
+      var recipe = by.recipes[b.recipeId], tg = recipe.targets;
+      var ok = b.density >= tg.density[0] && b.density <= tg.density[1] && b.viscositySec >= tg.viscositySec[0] && b.viscositySec <= tg.viscositySec[1];
+      return '<tr><td class="num small">' + esc(date(b.date)) + '</td><td>' + openLink('asset', b.millAssetId, by.assets[b.millAssetId].code) + '</td>' +
+        '<td>' + openLink('recipe', b.recipeId, L(recipe.name) + ' v' + recipe.version) + '</td>' +
+        '<td class="end num">' + num(b.batchKg) + '</td><td class="end num">' + num(b.density) + '</td><td class="end num">' + num(b.viscositySec) + '</td>' +
+        '<td>' + (ok ? chip(t('s.ok'), 'pos', true) : chip(t('qc.offSpec'), 'bad', true)) + '</td></tr>';
+    }).join('');
+    var table = '<div class="table-wrap"><table><thead><tr><th>' + esc(t('c.date')) + '</th><th>' + esc(t('c.mill')) + '</th><th>' + esc(t('c.recipe')) + '</th>' +
+      '<th class="end">' + esc(t('glaze.kg')) + '</th><th class="end">' + esc(t('d.density')) + '</th><th class="end">' + esc(t('d.viscosity')) + '</th><th>' + esc(t('c.status')) + '</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    return pageHead(L(MODULE_BY_ID.glaze.name), t('glaze.sub'), 'g.production') + stats +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('glaze.tableTitle')) + '</h2></div>' + table + '</section>';
+  }
+
   function renderPlanned(m) {
     var ready = m.uses.map(function (id) {
       var mm = MASTER.filter(function (x) { return x.id === id; })[0];
@@ -1100,8 +1252,21 @@
       ]);
       return drawerFrame('k.labTest', L(test.name), q.pass ? chip(t('s.pass'), 'pos') : chip(t('s.fail'), 'bad'), body);
     },
+    lot: function (l) {
+      var available = l.m2 - l.reservedM2 - l.dispatchedM2;
+      var body = facts([
+        [t('c.product'), openLink('product', l.productId, L(by.products[l.productId].name))], [t('c.line'), esc(L(LINE[l.line].name))],
+        [t('c.date'), esc(date(l.date))], [t('c.shift'), esc(L(DB.company.shifts.filter(function (sh) { return sh.id === l.shift; })[0].name))],
+        [t('sort.shiftReport'), openLink('shiftReport', l.shiftReportId, L(LINE[l.line].name) + ' · ' + date(l.date))],
+        [t('c.site') + '/' + t('c.bin'), openLink('warehouse', l.warehouseId, L(by.warehouses[l.warehouseId].name))],
+      ]) + block(t('sort.quantities'), facts([
+        [t('c.m2'), num(l.m2) + ' ' + m2()], [t('sort.boxes'), num(l.boxes)],
+        [t('sort.reserved'), num(l.reservedM2) + ' ' + m2()], [t('sort.dispatched'), num(l.dispatchedM2) + ' ' + m2()], [t('c.available'), num(available) + ' ' + m2()],
+      ]));
+      return drawerFrame('k.lot', l.lotNumber, chip(l.grade, l.grade === 'G1' ? 'pos' : l.grade === 'G2' ? 'warn' : 'bad', true) + chip(l.shade, '', true), body);
+    },
   };
-  var KIND_SOURCE = { product: 'products', material: 'materials', recipe: 'recipes', asset: 'assets', part: 'spareParts', warehouse: 'warehouses', supplier: 'suppliers', dealer: 'dealers', employee: 'employees', shiftReport: 'shiftReports', labTest: 'labTests' };
+  var KIND_SOURCE = { product: 'products', material: 'materials', recipe: 'recipes', asset: 'assets', part: 'spareParts', warehouse: 'warehouses', supplier: 'suppliers', dealer: 'dealers', employee: 'employees', shiftReport: 'shiftReports', labTest: 'labTests', lot: 'sortingLots' };
 
   function renderDrawer() {
     var top = state.drawer[state.drawer.length - 1];
@@ -1137,7 +1302,11 @@
     var other = state.locale === 'ar' ? 'English' : 'العربية';
     return '<button class="icon-btn" data-action="locale" aria-label="' + other + '" title="' + other + '"><span style="font-size:12px;font-weight:700">' + (state.locale === 'ar' ? 'EN' : 'ع') + '</span></button>';
   }
-  var PAGES = { exec: renderExecDashboard, lines: renderProductionDashboard, quality: renderQualityDashboard };
+  var PAGES = {
+    exec: renderExecDashboard, lines: renderProductionDashboard, quality: renderQualityDashboard,
+    planning: renderPlanningPage, prep: renderPrepPage, glaze: renderGlazePage,
+    sorting: function () { return renderListPage('sortingLots'); },
+  };
   function renderPage() {
     if (state.page === 'profile') return renderProfile();
     if (state.page === 'codes') return renderCodes();
