@@ -7,12 +7,13 @@ import { Jobs } from './pages/Jobs';
 import { Permissions } from './pages/Permissions';
 import { RecycleBin } from './pages/RecycleBin';
 import { Stock } from './pages/inventory/Stock';
+import { Tickets } from './pages/service/Tickets';
 
 type Stage = { kind: 'loading' } | { kind: 'signed-out' } | { kind: 'choose' } | { kind: 'ready'; me: Me };
 
 export function App() {
   const [stage, setStage] = useState<Stage>({ kind: 'loading' });
-  const [page, setPage] = useState<'orders' | 'stock' | 'recycle' | 'jobs' | 'permissions'>('orders');
+  const [page, setPage] = useState<'service' | 'orders' | 'stock' | 'recycle' | 'jobs' | 'permissions' | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -40,13 +41,15 @@ export function App() {
   const canSeePermissions = can(me, 'permissions', 'view');
   const canSeeRecycle = can(me, 'orders', 'restore') || can(me, 'attachments', 'restore');
   const tabs = [
-    { key: 'orders', label: 'الطلبات', show: true },
+    { key: 'service', label: 'طلبات الصيانة', show: can(me, 'service_tickets', 'view') },
+    { key: 'orders', label: 'الطلبات', show: can(me, 'orders', 'view') },
     { key: 'stock', label: 'المخزون', show: can(me, 'stock', 'view') || can(me, 'inventory_setup', 'manage') },
     { key: 'recycle', label: 'سلة المحذوفات', show: canSeeRecycle },
     { key: 'jobs', label: 'المهام', show: true },
     { key: 'permissions', label: 'الصلاحيات', show: canSeePermissions },
   ] as const;
-  const current = tabs.find((t) => t.key === page && t.show)?.key ?? 'orders';
+  // Each company sees the screens of its own recipe; the first one the person may use opens by default.
+  const current = tabs.find((t) => t.key === page && t.show)?.key ?? tabs.find((t) => t.show)!.key;
   return (
     <div className="shell">
       <header className="topbar">
@@ -70,6 +73,8 @@ export function App() {
       <main className="content">
         {current === 'permissions' ? (
           <Permissions me={me} onPolicyChanged={refresh} />
+        ) : current === 'service' ? (
+          <Tickets me={me} onPolicyChanged={refresh} />
         ) : current === 'stock' ? (
           <Stock me={me} onPolicyChanged={refresh} />
         ) : current === 'recycle' ? (

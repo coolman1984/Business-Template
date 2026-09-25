@@ -37,7 +37,7 @@ export interface Branch {
   name: string;
 }
 export interface Me {
-  tenant: { id: string; name: string };
+  tenant: { id: string; name: string; recipe: string };
   membership: { id: string; displayName: string };
   policyVersion: string;
   branches: Branch[];
@@ -110,6 +110,9 @@ const messages: Record<string, string> = {
   too_many_columns: 'عدد الأعمدة أكبر من المسموح.',
   empty_file: 'الملف فارغ.',
   csv_not_utf8: 'احفظ الملف بترميز UTF-8.',
+  invalid_transition: 'لا يمكن نقل الطلب لهذه الحالة الآن. أعد التحميل.',
+  parts_not_allowed: 'تُصرف القطع أثناء الفحص أو الإصلاح فقط.',
+  other_branch_warehouse: 'القطع تُصرف من مخزن فرع الطلب نفسه.',
   INVALID_EMAIL_OR_PASSWORD: 'البريد أو كلمة المرور غير صحيحة.',
 };
 

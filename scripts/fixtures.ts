@@ -220,8 +220,9 @@ export async function seedTenants(
 }
 
 /**
- * Local development only: adds permissions that newer role templates carry to the matching roles of
- * existing companies (roles are matched by template code). Never removes anything.
+ * Local development only: adds permissions that newer role templates of the trading recipe carry to
+ * the matching roles of that recipe's demo companies (matched by template code). Never removes anything.
+ * Companies made by the client generator are upgraded by the generator instead.
  */
 export async function syncRoleTemplates(ownerUrl: string, roleTemplates: readonly RoleTemplate[] = recipe.roleTemplates): Promise<number> {
   const client = new pg.Client({ connectionString: ownerUrl });
@@ -234,9 +235,10 @@ export async function syncRoleTemplates(ownerUrl: string, roleTemplates: readonl
       for (const [resource, action] of t.permissions) {
         const res = await client.query(
           `INSERT INTO role_permissions (tenant_id, role_id, resource, action)
-           SELECT r.tenant_id, r.id, $2, $3 FROM roles r WHERE r.code = $1
+           SELECT r.tenant_id, r.id, $2, $3 FROM roles r JOIN tenants x ON x.id = r.tenant_id
+           WHERE r.code = $1 AND x.recipe_code = $4
            ON CONFLICT DO NOTHING`,
-          [t.code, resource, action],
+          [t.code, resource, action, recipe.code],
         );
         added += res.rowCount ?? 0;
       }
@@ -245,9 +247,9 @@ export async function syncRoleTemplates(ownerUrl: string, roleTemplates: readonl
       // Open screens must notice the change, as with any policy change.
       await client.query(
         `UPDATE memberships m SET policy_version = policy_version + 1
-         WHERE EXISTS (SELECT 1 FROM role_assignments a JOIN roles r ON r.id = a.role_id
-                       WHERE a.membership_id = m.id AND r.code = ANY($1))`,
-        [roleTemplates.map((t) => t.code)],
+         WHERE EXISTS (SELECT 1 FROM role_assignments a JOIN roles r ON r.id = a.role_id JOIN tenants x ON x.id = r.tenant_id
+                       WHERE a.membership_id = m.id AND r.code = ANY($1) AND x.recipe_code = $2)`,
+        [roleTemplates.map((t) => t.code), recipe.code],
       );
     }
     await client.query('COMMIT');

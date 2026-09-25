@@ -35,8 +35,8 @@ const ACCEPT = '.pdf,.png,.jpg,.jpeg,.csv,.txt,.xlsx,.docx';
 export const formatSize = (n: number) => (n < 1024 ? `${n} بايت` : n < 1048576 ? `${(n / 1024).toFixed(0)} ك.ب` : `${(n / 1048576).toFixed(1)} م.ب`);
 export const formatDate = (d: string) => new Date(d).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' });
 
-/** Files attached to one order: upload, new version, download any clean version, move to the recycle bin. */
-export function OrderFiles({ me, orderId, branchId, onPolicyChanged }: { me: Me; orderId: string; branchId: string; onPolicyChanged: () => void }) {
+/** Files attached to one record (an order, a service ticket…): upload, new version, download any clean version, recycle bin. */
+export function RecordFiles({ me, resource, recordId, branchId, onPolicyChanged }: { me: Me; resource: string; recordId: string; branchId: string; onPolicyChanged: () => void }) {
   const [files, setFiles] = useState<StoredFile[] | null>(null);
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,10 +49,10 @@ export function OrderFiles({ me, orderId, branchId, onPolicyChanged }: { me: Me;
   const canDelete = can(me, 'attachments', 'delete', branchId);
 
   const load = useCallback(() => {
-    get<{ files: StoredFile[] }>(`/records/orders/${orderId}/files`)
+    get<{ files: StoredFile[] }>(`/records/${resource}/${recordId}/files`)
       .then((r) => setFiles(r.files))
       .catch((e) => setMessage({ kind: 'error', text: describeError(e) }));
-  }, [orderId]);
+  }, [resource, recordId]);
   useEffect(load, [load]);
 
   // While a scan is running, check back every few seconds until it settles.
@@ -105,7 +105,7 @@ export function OrderFiles({ me, orderId, branchId, onPolicyChanged }: { me: Me;
         <strong>المرفقات</strong>
         {canUpload && (
           <>
-            <input ref={newFile} type="file" accept={ACCEPT} hidden onChange={() => send(`/records/orders/${orderId}/files`, newFile.current)} />
+            <input ref={newFile} type="file" accept={ACCEPT} hidden onChange={() => send(`/records/${resource}/${recordId}/files`, newFile.current)} />
             <button disabled={busy} onClick={() => newFile.current?.click()}>{busy ? 'جارٍ الرفع…' : 'رفع ملف'}</button>
           </>
         )}
@@ -176,3 +176,7 @@ export function OrderFiles({ me, orderId, branchId, onPolicyChanged }: { me: Me;
     </div>
   );
 }
+
+export const OrderFiles = ({ orderId, ...rest }: { me: Me; orderId: string; branchId: string; onPolicyChanged: () => void }) => (
+  <RecordFiles resource="orders" recordId={orderId} {...rest} />
+);

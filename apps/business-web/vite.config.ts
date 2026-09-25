@@ -8,7 +8,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: Object.fromEntries(
-      ['/api', '/session', '/me', '/commands', '/orders', '/permissions', '/records', '/files', '/jobs', '/recycle-bin', '/inventory'].map((p) => [p, process.env.VITE_API_TARGET ?? 'http://127.0.0.1:3000']),
+      ['/api', '/session', '/me', '/commands', '/orders', '/permissions', '/records', '/files', '/jobs', '/recycle-bin', '/inventory', '/service'].map((p) => [p, process.env.VITE_API_TARGET ?? 'http://127.0.0.1:3000']),
     ),
   },
   build: { outDir: 'dist', emptyOutDir: true },

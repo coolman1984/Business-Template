@@ -26,7 +26,10 @@ See MASTER_PLAN §30 (no full accounting/payroll, no microservices for show, no 
 - `packages/platform-core/` tenancy transaction, authorization, command dispatcher, audit, idempotency, numbering, identity port.
 - `packages/engine-orders/` first business engine; owns the `orders` table; exports its capability manifest.
 - `packages/engine-inventory/` owns items, warehouses, stock documents/lines, append-only movements, balances and stock imports. Balances change only by posting (locks in item order); corrections are reversal documents.
-- `packages/recipe-inventory-orders/` first recipe: which engines/capabilities are installed plus role templates.
+- `packages/engine-service/` owns service tickets, their append-only events and parts links; parts are issued only through inventory's `issueStockForSource` contract in the same transaction.
+- `packages/recipe-*/` recipes (`RecipeDefinition`): engines pinned by version, commands, role templates, screens. `apps/api/src/catalog.ts` lists the recipes this build serves; `validateRecipe` must return no problems.
+- Each tenant is pinned to `tenants.recipe_code/recipe_version`. The dispatcher, access-control commands and `/me` use the tenant's recipe registry: a capability outside it does not exist for that company.
+- `scripts/generator.ts` (`pnpm generate:client <spec> [--dry-run] [--upgrade]`) provisions platform records as owner and engine data only through commands; it must stay idempotent (tests/generator.test.ts).
 - `apps/api/` Fastify server; business data only via `DATABASE_APP_URL` (runtime role `factory_app`); identity library via `DATABASE_AUTH_URL` (`factory_auth`, auth schema only).
 - `apps/business-web/` React + Vite Arabic (RTL) UI. Buttons follow `/me` capabilities; the server still enforces everything.
 - Every tenant table: `tenant_id` + composite FKs carrying `tenant_id`, RLS policy `tenant_isolation`, explicit least-privilege GRANTs to `factory_app`.

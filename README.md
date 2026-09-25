@@ -7,9 +7,10 @@
 - 🔐 تقرير المرحلة الأولى: [`docs/PHASE_1_REPORT.md`](docs/PHASE_1_REPORT.md)
 - 🗂️ تقرير المرحلة الثانية: [`docs/PHASE_2_REPORT.md`](docs/PHASE_2_REPORT.md)
 - 📦 تقرير المرحلة الثالثة: [`docs/PHASE_3_REPORT.md`](docs/PHASE_3_REPORT.md)
+- 🔧 تقرير المرحلة الرابعة: [`docs/PHASE_4_REPORT.md`](docs/PHASE_4_REPORT.md)
 - 🤖 قواعد الوكيل البرمجي: [`CLAUDE.md`](CLAUDE.md)
 
-**الحالة:** المرحلة الثالثة مكتملة — مخزون بمستندات ودفتر حركات، ترحيل آمن مع الضغط، تصحيح بالعكس، واستيراد أرصدة افتتاحية من إكسل.
+**الحالة:** المرحلة الرابعة مكتملة — وصفتان (تجارة ومركز صيانة) على نفس النواة، ومولد يبني شركة كاملة من ملف تعريف.
 
 ## ▶️ تشغيل بضغطة واحدة
 1. ثبّت Node.js (الإصدار 22 أو أحدث) من https://nodejs.org
@@ -24,6 +25,10 @@
 ```bash
 pnpm install
 pnpm local                      # all-in-one local dev (embedded PostgreSQL in .local/, API, live-reload UI)
+
+# New company from a definition (see examples/clients/): preview, then apply; safe to re-run
+pnpm generate:client examples/clients/fixit-maintenance.json --dry-run
+pnpm generate:client examples/clients/fixit-maintenance.json
 
 # Or against your own PostgreSQL:
 cp .env.example .env            # then edit passwords

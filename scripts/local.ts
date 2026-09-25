@@ -6,12 +6,13 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import EmbeddedPostgres from 'embedded-postgres';
 import { bootstrapDatabase, migrate } from './db-tools.js';
 import { seedTenants, syncRoleTemplates } from './fixtures.js';
+import { generateClient } from './generator.js';
 
 const root = join(import.meta.dirname, '..');
 const stateDir = join(root, '.local');
@@ -123,6 +124,17 @@ async function main(): Promise<void> {
       lines.push('');
     }
     await writeFile(loginsFile, lines.join('\n'), { mode: 0o600 });
+  }
+
+  // A second company from the maintenance recipe, built by the client generator (safe to re-run).
+  const demo = await generateClient({
+    ownerUrl,
+    appUrl: url('factory_app', config.appPassword, 'factory'),
+    spec: JSON.parse(await readFile(join(root, 'examples', 'clients', 'fixit-maintenance.json'), 'utf8')),
+  });
+  if (demo.credentials.length) {
+    console.log('▶ Created the demo maintenance center with the client generator');
+    await appendFile(loginsFile, ['[fixit — maintenance center, made by the client generator]', ...demo.credentials.map((c) => `  ${c.email}  /  ${c.password}`), ''].join('\n'));
   }
 
   console.log('▶ Starting API and web UI…');

@@ -131,3 +131,17 @@ tr.inactive td { color: var(--muted); text-decoration: line-through; }
 tr.inactive td:last-child { text-decoration: none; }
 .split-even { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
 @media (max-width: 900px) { .split-even { grid-template-columns: 1fr; } }
+textarea { font: inherit; border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.6rem; background: var(--surface); color: var(--text); width: 100%; resize: vertical; }
+.search { flex: 1 1 220px; max-width: 360px; margin-bottom: 1rem; }
+tr.selected td { background: var(--no-bg); }
+.receive { display: grid; gap: 0.75rem; }
+.ticket { display: grid; gap: 0.6rem; align-content: start; }
+.ticket h3 { margin: 0.5rem 0 0; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 0.9rem; margin: 0; }
+.facts dt { color: var(--muted); font-size: 0.9rem; }
+.facts dd { margin: 0; }
+.next-step { display: grid; gap: 0.5rem; border: 1px dashed var(--border); border-radius: 8px; padding: 0.75rem; }
+.parts { margin: 0; padding-inline-start: 1.2rem; display: grid; gap: 0.2rem; }
+.timeline { list-style: none; margin: 0; padding: 0; border-inline-start: 2px solid var(--border); display: grid; gap: 0.6rem; }
+.timeline li { padding-inline-start: 0.8rem; position: relative; }
+.timeline li::before { content: ''; position: absolute; inset-inline-start: -6px; top: 0.45rem; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
