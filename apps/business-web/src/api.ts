@@ -60,7 +60,11 @@ export function runCommand<T>(me: Me, name: string, input: unknown, idempotencyK
 
 /** Sends a file's bytes as-is; the server quarantines them and queues a scan before anyone can download. */
 export function uploadFile(me: Me, url: string, file: File, idempotencyKey = crypto.randomUUID()) {
-  return request<{ operationId: string; result: { fileId: string; versionId: string; jobId: string }; replayed: boolean }>('POST', url, undefined, {
+  return uploadRaw<{ operationId: string; result: { fileId: string; versionId: string; jobId: string }; replayed: boolean }>(me, url, file, idempotencyKey);
+}
+
+export function uploadRaw<T>(me: Me, url: string, file: File, idempotencyKey = crypto.randomUUID()) {
+  return request<T>('POST', url, undefined, {
     'content-type': 'application/octet-stream',
     'x-file-name': encodeURIComponent(file.name),
     'idempotency-key': idempotencyKey,
@@ -84,6 +88,28 @@ const messages: Record<string, string> = {
   parent_deleted: 'استرجع الطلب صاحب هذا الملف أولًا.',
   not_failed: 'لا يُعاد إلا المهام المتعثرة.',
   not_cancellable: 'لا تُلغى إلا المهام المنتظرة أو المتعثرة.',
+  insufficient_stock: 'الرصيد لا يكفي، ولم يُرحّل شيء.',
+  not_draft: 'المستند لم يعد مسودة (رُحّل أو أُلغي). أعد التحميل.',
+  not_posted: 'لا يُعكس إلا مستند مُرحّل.',
+  already_reversed: 'هذا المستند عُكس من قبل.',
+  cannot_reverse_reversal: 'مستند العكس لا يُعكس؛ اعمل مستندًا جديدًا.',
+  duplicate_code: 'هذا الكود مستخدم بالفعل.',
+  unit_in_use: 'لا تتغير الوحدة بعد استخدام الصنف في مستند.',
+  item_inactive: 'في المستند صنف موقوف.',
+  warehouse_inactive: 'المخزن موقوف.',
+  no_change: 'لا يوجد تغيير للحفظ.',
+  import_has_errors: 'في الملف صفوف بها أخطاء. صححها وارفع الملف مرة أخرى.',
+  import_changed: 'البيانات تغيرت بعد المعاينة. ارفع الملف مرة أخرى.',
+  import_decided: 'تم التصرف في هذا الاستيراد من قبل.',
+  missing_columns: 'الملف يحتاج عمودين: «كود الصنف» و«الكمية». نزّل القالب.',
+  unsupported_file_type: 'المقبول ملفات إكسل الحديثة (xlsx) أو csv فقط.',
+  not_a_workbook: 'الملف تالف أو ليس ملف إكسل.',
+  workbook_too_large_or_damaged: 'الملف تالف أو أكبر من المسموح.',
+  macros_not_allowed: 'ملفات الماكرو غير مقبولة.',
+  too_many_rows: 'عدد الصفوف أكبر من المسموح (٢٠ ألف صف).',
+  too_many_columns: 'عدد الأعمدة أكبر من المسموح.',
+  empty_file: 'الملف فارغ.',
+  csv_not_utf8: 'احفظ الملف بترميز UTF-8.',
   INVALID_EMAIL_OR_PASSWORD: 'البريد أو كلمة المرور غير صحيحة.',
 };
 

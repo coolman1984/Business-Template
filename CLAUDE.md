@@ -25,6 +25,7 @@ See MASTER_PLAN §30 (no full accounting/payroll, no microservices for show, no 
 - `db/migrations/` versioned SQL, applied by `pnpm db:migrate` as `factory_owner`. Never edit an applied migration; add a new one.
 - `packages/platform-core/` tenancy transaction, authorization, command dispatcher, audit, idempotency, numbering, identity port.
 - `packages/engine-orders/` first business engine; owns the `orders` table; exports its capability manifest.
+- `packages/engine-inventory/` owns items, warehouses, stock documents/lines, append-only movements, balances and stock imports. Balances change only by posting (locks in item order); corrections are reversal documents.
 - `packages/recipe-inventory-orders/` first recipe: which engines/capabilities are installed plus role templates.
 - `apps/api/` Fastify server; business data only via `DATABASE_APP_URL` (runtime role `factory_app`); identity library via `DATABASE_AUTH_URL` (`factory_auth`, auth schema only).
 - `apps/business-web/` React + Vite Arabic (RTL) UI. Buttons follow `/me` capabilities; the server still enforces everything.
