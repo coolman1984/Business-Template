@@ -6,6 +6,8 @@
     "@factory/platform-core": "workspace:*",
     "@factory/engine-orders": "workspace:*",
     "@factory/recipe-inventory-orders": "workspace:*",
-    "@factory/engine-inventory": "workspace:*"
+    "@factory/engine-inventory": "workspace:*",
+    "@factory/engine-service": "workspace:*",
+    "@factory/recipe-maintenance-center": "workspace:*"
   }
 }

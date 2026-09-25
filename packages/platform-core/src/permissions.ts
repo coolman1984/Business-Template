@@ -3,6 +3,7 @@ import type { AuditEntry } from './audit.js';
 import { authorize, canDelegate, loadSubject, type AuthorizationSubject } from './authorization.js';
 import type { CapabilityRegistry } from './capabilities.js';
 import type { CommandDefinition } from './commands.js';
+import type { RegistryResolver } from './recipes.js';
 import type { RequestContext } from './context.js';
 import type { Tx } from './db.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from './errors.js';
@@ -102,7 +103,9 @@ function scopeState(scope: Scope): unknown {
 }
 
 /** Commands that manage who can do what. Built per registry so they can validate the catalog. */
-export function accessControlCommands(registry: CapabilityRegistry): CommandDefinition<any, any, any>[] {
+export function accessControlCommands(catalog: CapabilityRegistry | RegistryResolver): CommandDefinition<any, any, any>[] {
+  // Only what the company's recipe installs may be granted.
+  const installed = (trx: Tx) => (typeof catalog === 'function' ? catalog(trx) : Promise.resolve(catalog));
   const grantException: CommandDefinition<
     { membershipId: string; resource: string; action: string; effect: 'allow' | 'deny'; scope: Scope; reason: string },
     null,
@@ -118,7 +121,7 @@ export function accessControlCommands(registry: CapabilityRegistry): CommandDefi
     },
     async plan(trx, input, ctx) {
       assertNotSelf(ctx, input.membershipId);
-      assertKnownCapability(registry, input.resource, input.action, input.scope);
+      assertKnownCapability(await installed(trx), input.resource, input.action, input.scope);
       await assertBranchesExist(trx, input.scope);
       await assertMembershipExists(trx, input.membershipId);
       return { checks: [MANAGE_PERMISSIONS], state: null };
@@ -230,6 +233,7 @@ export function accessControlCommands(registry: CapabilityRegistry): CommandDefi
       const role = await trx.selectFrom('roles').select('name').where('id', '=', input.roleId).executeTakeFirst();
       if (!role) throw new NotFoundError('role');
       const permissions = await trx.selectFrom('role_permissions').select(['resource', 'action']).where('role_id', '=', input.roleId).execute();
+      const registry = await installed(trx);
       for (const p of permissions) assertKnownCapability(registry, p.resource, p.action, input.scope);
       return { checks: [MANAGE_PERMISSIONS], state: { roleName: role.name, permissions } };
     },
@@ -333,6 +337,7 @@ export function accessControlCommands(registry: CapabilityRegistry): CommandDefi
     async plan(trx, input, ctx) {
       const role = await trx.selectFrom('roles').select(['version']).where('id', '=', input.roleId).forUpdate().executeTakeFirst();
       if (!role) throw new NotFoundError('role');
+      const registry = await installed(trx);
       for (const p of input.permissions) assertKnownCapability(registry, p.resource, p.action);
       const before = await trx.selectFrom('role_permissions').select(['resource', 'action']).where('role_id', '=', input.roleId).execute();
       const members = await trx.selectFrom('role_assignments').select('membership_id').where('role_id', '=', input.roleId).execute();

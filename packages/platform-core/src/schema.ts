@@ -7,6 +7,8 @@ export interface TenantsTable {
   id: Generated<string>;
   code: string;
   name: string;
+  recipe_code: Generated<string>;
+  recipe_version: Generated<string>;
   created_at: Timestamp;
 }
 
@@ -141,6 +143,7 @@ export interface RolesTable {
   name: string;
   description: Generated<string>;
   version: Generated<number>;
+  template_permissions: Generated<string[]>;
 }
 
 export interface RolePermissionsTable {
@@ -178,7 +181,7 @@ export interface RowChangesTable {
   changed_at: Timestamp;
 }
 
-export interface Database extends CoreDatabase, PhaseTwoTables, InventoryTables {
+export interface Database extends CoreDatabase, PhaseTwoTables, InventoryTables, ServiceTables {
   roles: RolesTable;
   role_permissions: RolePermissionsTable;
   role_assignments: RoleAssignmentsTable;
@@ -386,4 +389,54 @@ export interface InventoryTables {
   stock_movements: StockMovementsTable;
   stock_balances: StockBalancesTable;
   stock_imports: StockImportsTable;
+}
+
+// Owned by packages/engine-service.
+export type TicketStatus = 'received' | 'diagnosing' | 'awaiting_approval' | 'repairing' | 'ready' | 'delivered' | 'cancelled';
+
+export interface ServiceTicketsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  legal_entity_id: string;
+  branch_id: string;
+  ticket_number: string;
+  status: Generated<TicketStatus>;
+  customer_name: string;
+  customer_phone: string;
+  device: string;
+  serial_number: string | null;
+  problem: string;
+  diagnosis: string | null;
+  under_warranty: Generated<boolean>;
+  version: Generated<number>;
+  created_at: Timestamp;
+  created_by: string;
+  updated_at: Timestamp;
+  updated_by: string;
+}
+
+export interface ServiceTicketEventsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  ticket_id: string;
+  from_status: TicketStatus | null;
+  to_status: TicketStatus;
+  note: string | null;
+  created_at: Timestamp;
+  created_by: string;
+}
+
+export interface ServiceTicketPartsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  ticket_id: string;
+  stock_document_id: string;
+  created_at: Timestamp;
+  created_by: string;
+}
+
+export interface ServiceTables {
+  service_tickets: ServiceTicketsTable;
+  service_ticket_events: ServiceTicketEventsTable;
+  service_ticket_parts: ServiceTicketPartsTable;
 }

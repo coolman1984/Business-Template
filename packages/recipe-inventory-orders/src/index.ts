@@ -1,35 +1,37 @@
 import { inventoryCapabilities, inventoryCommands } from '@factory/engine-inventory';
 import { orderAttachmentTarget, orderCommands, ordersCapabilities } from '@factory/engine-orders';
 import {
-  AttachmentTargets,
   fileCapabilities,
-  fileCommands,
   jobCapabilities,
   jobCommands,
   platformCapabilities,
-  type CapabilityManifest,
-  type CommandDefinition,
+  type RecipeDefinition,
+  type RoleTemplate,
 } from '@factory/platform-core';
 
-export interface RoleTemplate {
-  readonly code: string;
-  readonly name: string;
-  readonly description: string;
-  readonly permissions: readonly (readonly [resource: string, action: string])[];
-}
+export type { RoleTemplate };
 
 /**
- * Recipe: inventory and orders for a small company. A recipe composes existing, tested engines and
- * ships role templates; it adds no business rules of its own.
+ * Recipe: inventory and orders for a small trading company. A recipe composes existing, tested
+ * engines and ships role templates; it adds no business rules of its own.
  */
-const attachmentTargets = new AttachmentTargets([orderAttachmentTarget]);
+const capabilities = [platformCapabilities, jobCapabilities, fileCapabilities, ordersCapabilities, inventoryCapabilities];
+const attachmentTargets = [orderAttachmentTarget];
 
 export const recipe = {
   code: 'inventory-orders',
   version: '0.3.0',
-  capabilities: [platformCapabilities, jobCapabilities, fileCapabilities, ordersCapabilities, inventoryCapabilities] as readonly CapabilityManifest[],
+  name: { ar: 'تجارة وتوزيع: طلبات ومخزون', en: 'Trading: orders and stock' },
+  engines: capabilities.map((m) => ({ module: m.module, version: '1.0.0' })),
+  capabilities,
   attachmentTargets,
-  commands: [...orderCommands, ...inventoryCommands, ...fileCommands(attachmentTargets), ...jobCommands] as readonly CommandDefinition<any, any, any>[],
+  // File commands are added by the platform for every recipe that installs attachments.
+  commands: [...orderCommands, ...inventoryCommands, ...jobCommands],
+  screens: [
+    { key: 'orders', requires: ['orders', 'view'] },
+    { key: 'stock', requires: ['stock', 'view'] },
+    { key: 'permissions', requires: ['permissions', 'view'] },
+  ],
   roleTemplates: [
     {
       code: 'company_admin',
@@ -108,4 +110,4 @@ export const recipe = {
       ],
     },
   ] satisfies RoleTemplate[],
-};
+} satisfies RecipeDefinition;

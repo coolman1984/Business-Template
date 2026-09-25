@@ -16,15 +16,13 @@ import {
 import { listDeletedOrders, listOrders } from '@factory/engine-orders';
 import {
   BusinessError,
-  CapabilityRegistry,
   FileTooLargeError,
   MAX_FILE_BYTES,
-  CommandDispatcher,
   ForbiddenError,
   UnauthenticatedError,
   ValidationError,
-  accessControlCommands,
   describeAccess,
+  installedCapabilities,
   describeMe,
   listMembers,
   listMembershipsFor,
@@ -41,9 +39,11 @@ import {
   type Db,
   type IdentityPort,
   type ObjectStorage,
+  type RecipeCatalog,
   type RequestContext,
 } from '@factory/platform-core';
-import { recipe } from '@factory/recipe-inventory-orders';
+import { getTicket, listTickets } from '@factory/engine-service';
+import { catalog as defaultCatalog, createDispatcher } from './catalog.js';
 
 export interface AppDeps {
   db: Db;
@@ -55,6 +55,8 @@ export interface AppDeps {
   /** Built web app to serve (on-premise installs serve everything from one address). */
   webRoot?: string;
   logger?: boolean;
+  /** Recipes served (defaults to this build's catalog). */
+  catalog?: RecipeCatalog;
 }
 
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
@@ -76,7 +78,7 @@ function toHeaders(request: FastifyRequest): Headers {
   return headers;
 }
 
-export function buildApp({ db, identity, authHandler, publicUrl, storage, webRoot, logger = false }: AppDeps): FastifyInstance {
+export function buildApp({ db, identity, authHandler, publicUrl, storage, webRoot, logger = false, catalog = defaultCatalog }: AppDeps): FastifyInstance {
   const app = Fastify({ logger, genReqId: () => randomUUID(), bodyLimit: 256 * 1024 });
   const publicOrigin = new URL(publicUrl).origin;
 
@@ -90,9 +92,10 @@ export function buildApp({ db, identity, authHandler, publicUrl, storage, webRoo
       return reply.status(403).send({ error: 'forbidden', message: 'Cross-site request rejected.', details: { reasonCode: 'cross_site' } });
     }
   });
-  const registry = new CapabilityRegistry(recipe.capabilities);
-  const dispatcher = new CommandDispatcher(db, registry).register(...recipe.commands, ...accessControlCommands(registry));
-  const targets = recipe.attachmentTargets;
+  // What each company may use comes from its own recipe, looked up inside each transaction.
+  const registry = catalog.registryFor.bind(catalog);
+  const dispatcher = createDispatcher(db, catalog);
+  const targets = catalog.files;
 
   // Uploads arrive as a raw byte stream; size is enforced while writing to quarantine.
   app.addContentTypeParser('application/octet-stream', (_request, payload, done) => done(null, payload));
@@ -242,6 +245,13 @@ export function buildApp({ db, identity, authHandler, publicUrl, storage, webRoo
     return { items };
   });
 
+  // ───── Service tickets ─────
+  app.get('/service/tickets', async (request) => ({ tickets: await listTickets(db, await contextOf(request)) }));
+  app.get<{ Params: { id: string } }>('/service/tickets/:id', async (request) => {
+    if (!uuidRe.test(request.params.id)) throw new ValidationError({ id: 'invalid' });
+    return getTicket(db, await contextOf(request), request.params.id);
+  });
+
   // ───── Inventory ─────
   app.get('/inventory/items', async (request) => ({ items: await listItems(db, await contextOf(request)) }));
   app.get('/inventory/warehouses', async (request) => ({ warehouses: await listWarehouses(db, await contextOf(request)) }));
@@ -315,8 +325,8 @@ export function buildApp({ db, identity, authHandler, publicUrl, storage, webRoo
   });
 
   app.get('/permissions/catalog', async (request) => {
-    await contextOf(request);
-    return { resources: registry.all() };
+    const ctx = await contextOf(request);
+    return { resources: await installedCapabilities(db, ctx, registry) };
   });
   app.get('/permissions/members', async (request) => ({ members: await listMembers(db, await contextOf(request)) }));
   app.get('/permissions/roles', async (request) => ({ roles: await listRoles(db, await contextOf(request)) }));

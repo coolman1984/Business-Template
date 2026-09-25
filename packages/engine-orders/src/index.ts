@@ -18,6 +18,7 @@ export const ORDERS = 'orders';
 
 export const ordersCapabilities: CapabilityManifest = {
   module: 'engine-orders',
+  version: '1.0.0',
   resources: [
     {
       key: ORDERS,

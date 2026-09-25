@@ -72,12 +72,18 @@ importers:
       '@factory/engine-orders':
         specifier: workspace:*
         version: link:../../packages/engine-orders
+      '@factory/engine-service':
+        specifier: workspace:*
+        version: link:../../packages/engine-service
       '@factory/platform-core':
         specifier: workspace:*
         version: link:../../packages/platform-core
       '@factory/recipe-inventory-orders':
         specifier: workspace:*
         version: link:../../packages/recipe-inventory-orders
+      '@factory/recipe-maintenance-center':
+        specifier: workspace:*
+        version: link:../../packages/recipe-maintenance-center
 
   apps/business-web: {}
 
@@ -93,6 +99,15 @@ importers:
         specifier: workspace:*
         version: link:../platform-core
 
+  packages/engine-service:
+    dependencies:
+      '@factory/engine-inventory':
+        specifier: workspace:*
+        version: link:../engine-inventory
+      '@factory/platform-core':
+        specifier: workspace:*
+        version: link:../platform-core
+
   packages/platform-core: {}
 
   packages/recipe-inventory-orders:
@@ -103,6 +118,18 @@ importers:
       '@factory/engine-orders':
         specifier: workspace:*
         version: link:../engine-orders
+      '@factory/platform-core':
+        specifier: workspace:*
+        version: link:../platform-core
+
+  packages/recipe-maintenance-center:
+    dependencies:
+      '@factory/engine-inventory':
+        specifier: workspace:*
+        version: link:../engine-inventory
+      '@factory/engine-service':
+        specifier: workspace:*
+        version: link:../engine-service
       '@factory/platform-core':
         specifier: workspace:*
         version: link:../platform-core

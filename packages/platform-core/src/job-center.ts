@@ -9,6 +9,7 @@ import { withTenantTransaction } from './tenant-transaction.js';
 
 export const jobCapabilities: CapabilityManifest = {
   module: 'platform-core/jobs',
+  version: '1.0.0',
   resources: [
     {
       key: 'jobs',

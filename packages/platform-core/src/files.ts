@@ -18,6 +18,7 @@ export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
 export const fileCapabilities: CapabilityManifest = {
   module: 'platform-core/files',
+  version: '1.0.0',
   resources: [
     {
       key: ATTACHMENTS,

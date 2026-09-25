@@ -424,3 +424,75 @@ export const reverseDocument: CommandDefinition<{ documentId: string; reason: st
 };
 
 export const documentCommands = [createDocument, updateDocument, cancelDocument, postDocument, reverseDocument];
+
+/**
+ * Contract for other engines (e.g. parts used on a service ticket): creates and posts a stock issue
+ * in the caller's transaction, so the caller's change and the stock movement commit or fail together.
+ * The calling command must already have authorized the business action on the warehouse's branch;
+ * the warehouse must be active and the items active. Returns the audit entries the caller must report.
+ */
+export async function issueStockForSource(
+  trx: Tx,
+  ctx: RequestContext,
+  input: { warehouseId: string; lines: readonly LineInput[]; reference: string; notes?: string },
+): Promise<{ documentId: string; documentNumber: string; branchId: string; audit: AuditEntry[] }> {
+  const wh = await lockWarehouse(trx, input.warehouseId);
+  if (!wh.active) throw new ConflictError('warehouse_inactive', 'The warehouse is not active.');
+  await checkLines(trx, input.lines);
+  const doc = await trx
+    .insertInto('stock_documents')
+    .values({
+      tenant_id: ctx.tenantId,
+      legal_entity_id: wh.legal_entity_id,
+      branch_id: wh.branch_id,
+      warehouse_id: wh.id,
+      doc_type: 'issue',
+      direction: -1,
+      reference: input.reference.slice(0, 200),
+      notes: input.notes?.slice(0, 2000) ?? null,
+      created_by: ctx.membershipId,
+      updated_by: ctx.membershipId,
+    })
+    .returningAll()
+    .executeTakeFirstOrThrow();
+  await writeLines(trx, ctx, doc.id, input.lines);
+  const { documentNumber, audit } = await postDraft(trx, ctx, doc);
+  audit.unshift({
+    resource: 'stock_documents',
+    recordId: doc.id,
+    action: 'create',
+    changes: { type: [null, 'issue'], warehouseId: [null, wh.id], reference: [null, input.reference], lines: [null, linesAudit(input.lines)] },
+  });
+  return { documentId: doc.id, documentNumber, branchId: wh.branch_id, audit };
+}
+
+/** Contract for other engines: the branch a warehouse belongs to (null if unknown to this company). */
+export async function warehouseBranch(trx: Tx, warehouseId: string): Promise<string | null> {
+  const wh = await trx.selectFrom('warehouses').select('branch_id').where('id', '=', warehouseId).executeTakeFirst();
+  return wh?.branch_id ?? null;
+}
+
+/** Contract for other engines: number and lines of stock documents they created through this engine. */
+export async function documentSummaries(trx: Tx, documentIds: readonly string[]) {
+  if (documentIds.length === 0) return [];
+  const docs = await trx
+    .selectFrom('stock_documents as d')
+    .innerJoin('warehouses as w', 'w.id', 'd.warehouse_id')
+    .select(['d.id', 'd.document_number', 'd.status', 'w.name as warehouse_name'])
+    .where('d.id', 'in', documentIds)
+    .execute();
+  const lines = await trx
+    .selectFrom('stock_document_lines as l')
+    .innerJoin('inventory_items as i', 'i.id', 'l.item_id')
+    .select(['l.document_id', 'l.quantity', 'i.code', 'i.name', 'i.unit'])
+    .where('l.document_id', 'in', documentIds)
+    .orderBy('l.line_no')
+    .execute();
+  return docs.map((d) => ({
+    id: d.id,
+    number: d.document_number,
+    status: d.status,
+    warehouse: d.warehouse_name,
+    lines: lines.filter((l) => l.document_id === d.id).map((l) => ({ code: l.code, name: l.name, unit: l.unit, quantity: normalizeQuantity(l.quantity) })),
+  }));
+}

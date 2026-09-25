@@ -1,0 +1,19 @@
+{
+  "company": { "code": "fixit", "name": "مركز فكس إت للصيانة" },
+  "recipe": { "code": "maintenance-center", "version": "1.0.0" },
+  "legalEntity": { "code": "MAIN", "name": "فكس إت لخدمات الصيانة ش.م.م" },
+  "timeZone": "Africa/Cairo",
+  "branches": [
+    { "code": "NASR", "name": "فرع مدينة نصر" },
+    { "code": "MAADI", "name": "فرع المعادي" },
+    { "code": "DOKKI", "name": "فرع الدقي" },
+    { "code": "ALEX", "name": "فرع الإسكندرية" },
+    { "code": "TANTA", "name": "فرع طنطا" }
+  ],
+  "warehouses": [
+    { "code": "PARTS-CAI", "name": "مخزن قطع غيار القاهرة", "branch": "NASR" },
+    { "code": "PARTS-ALX", "name": "مخزن قطع غيار الإسكندرية", "branch": "ALEX" },
+    { "code": "PARTS-DLT", "name": "مخزن قطع غيار الدلتا", "branch": "TANTA" }
+  ],
+  "administrators": [{ "email": "owner@fixit.example.test", "name": "مدير فكس إت" }]
+}

@@ -14,6 +14,7 @@
     "db:bootstrap": "tsx scripts/bootstrap.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed-demo": "tsx scripts/seed-demo.ts",
+    "generate:client": "tsx scripts/generate-client.ts",
     "start": "tsx apps/api/src/main.ts",
     "build:web": "vite build apps/business-web",
     "dev:web": "vite apps/business-web",

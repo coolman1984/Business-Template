@@ -1,6 +1,7 @@
 import { recordSecurityEvent } from './audit.js';
 import { authorize, loadSubject, type AuthorizationDecision, type AuthorizationSubject, type GrantSource } from './authorization.js';
 import type { CapabilityRegistry } from './capabilities.js';
+import type { RegistryResolver } from './recipes.js';
 import type { RequestContext } from './context.js';
 import type { Db, Tx } from './db.js';
 import { ForbiddenError, NotFoundError, UnauthenticatedError } from './errors.js';
@@ -48,11 +49,19 @@ async function branchesOf(trx: Tx) {
 }
 
 /** Who am I in this company, and what may I do? Drives which buttons the screen shows (never enforcement). */
-export async function describeMe(db: Db, ctx: RequestContext, registry: CapabilityRegistry) {
+const resolveRegistry = (catalog: CapabilityRegistry | RegistryResolver, trx: Tx) => (typeof catalog === 'function' ? catalog(trx) : Promise.resolve(catalog));
+
+/** The installed capabilities of the caller's company, for the permission screen's catalog. */
+export async function installedCapabilities(db: Db, ctx: RequestContext, catalog: RegistryResolver) {
+  return withTenantTransaction(db, ctx, async (trx) => (await catalog(trx)).all());
+}
+
+export async function describeMe(db: Db, ctx: RequestContext, catalog: CapabilityRegistry | RegistryResolver) {
   return withTenantTransaction(db, ctx, async (trx) => {
+    const registry = await resolveRegistry(catalog, trx);
     const subject = await loadSubject(trx, ctx.membershipId);
     if (!subject) throw new UnauthenticatedError();
-    const tenant = await trx.selectFrom('tenants').select(['id', 'name']).executeTakeFirstOrThrow();
+    const tenant = await trx.selectFrom('tenants').select(['id', 'name', 'recipe_code as recipe']).executeTakeFirstOrThrow();
     const me = await trx.selectFrom('memberships').select(['id', 'display_name']).where('id', '=', ctx.membershipId).executeTakeFirstOrThrow();
     const branches = await branchesOf(trx);
     const capabilities = registry.all().flatMap((r) =>
@@ -98,8 +107,9 @@ export async function listRoles(db: Db, ctx: RequestContext) {
  * The permission screen for one member: their roles and exceptions, and for every capability the
  * resulting decision per branch with the reason — computed by the same function that enforces it.
  */
-export async function describeAccess(db: Db, ctx: RequestContext, registry: CapabilityRegistry, membershipId: string) {
+export async function describeAccess(db: Db, ctx: RequestContext, catalog: CapabilityRegistry | RegistryResolver, membershipId: string) {
   return authorizedRead(db, ctx, { resource: 'permissions', action: 'view', branchId: null }, async (trx) => {
+    const registry = await resolveRegistry(catalog, trx);
     const target = await loadSubject(trx, membershipId);
     if (!target) throw new NotFoundError('membership');
     const member = await trx.selectFrom('memberships').select(['id', 'display_name', 'status']).where('id', '=', membershipId).executeTakeFirstOrThrow();
@@ -150,10 +160,11 @@ export async function describeAccess(db: Db, ctx: RequestContext, registry: Capa
 export async function simulateAccess(
   db: Db,
   ctx: RequestContext,
-  registry: CapabilityRegistry,
+  catalog: CapabilityRegistry | RegistryResolver,
   q: { membershipId: string; resource: string; action: string; branchId: string | null },
 ) {
   return authorizedRead(db, ctx, { resource: 'permissions', action: 'view', branchId: null }, async (trx) => {
+    const registry = await resolveRegistry(catalog, trx);
     if (!registry.has(q.resource, q.action)) throw new NotFoundError('capability');
     const target = await loadSubject(trx, q.membershipId);
     if (!target) throw new NotFoundError('membership');

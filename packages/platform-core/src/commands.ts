@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Ajv, type ValidateFunction } from 'ajv';
 import { sql } from 'kysely';
 import type { CapabilityRegistry } from './capabilities.js';
+import type { RegistryResolver } from './recipes.js';
 import { writeAuditEntries, recordSecurityEvent, type AuditEntry } from './audit.js';
 import { authorize, loadSubjectForUpdate, type AuthorizationRequest, type AuthorizationSubject } from './authorization.js';
 import type { RequestContext } from './context.js';
@@ -59,9 +60,15 @@ export class CommandDispatcher {
   private readonly ajv = new Ajv({ allErrors: true, strict: true });
   private readonly commands = new Map<string, { def: CommandDefinition<any, any, any>; validate: ValidateFunction }>();
 
+  /**
+   * @param capabilities every capability this build knows (all recipes).
+   * @param installed what the current company's recipe installs; a command needing anything else
+   *   does not exist for that company.
+   */
   constructor(
     private readonly db: Db,
     readonly capabilities: CapabilityRegistry,
+    private readonly installed?: RegistryResolver,
   ) {}
 
   register(...defs: CommandDefinition<any, any, any>[]): this {
@@ -144,6 +151,8 @@ export class CommandDispatcher {
 
     const { checks, state } = await def.plan(trx, input, ctx);
     if (checks.length === 0) throw new Error(`Command ${def.name} declared no permission checks`);
+    const installed = this.installed ? await this.installed(trx) : this.capabilities;
+    if (checks.some((c) => !installed.has(c.resource, c.action))) throw new NotFoundError('command');
     for (const check of checks) {
       if (!def.requires.some((r) => r.resource === check.resource && r.action === check.action)) {
         throw new Error(`Command ${def.name} checked ${check.resource}.${check.action} without declaring it`);

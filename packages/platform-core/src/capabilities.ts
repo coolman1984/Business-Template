@@ -21,6 +21,8 @@ export interface ResourceDefinition {
 /** What a module adds to the permission catalog. Every command and grant must reference an entry here. */
 export interface CapabilityManifest {
   readonly module: string;
+  /** The engine's version; a recipe pins the version it was tested with. */
+  readonly version?: string;
   readonly resources: readonly ResourceDefinition[];
 }
 
@@ -64,6 +66,7 @@ export class CapabilityRegistry {
 
 export const platformCapabilities: CapabilityManifest = {
   module: 'platform-core',
+  version: '1.0.0',
   resources: [
     {
       key: 'permissions',

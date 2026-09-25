@@ -5,6 +5,7 @@ export const STOCK = 'stock';
 
 export const inventoryCapabilities: CapabilityManifest = {
   module: 'engine-inventory',
+  version: '1.0.0',
   resources: [
     {
       key: SETUP,
