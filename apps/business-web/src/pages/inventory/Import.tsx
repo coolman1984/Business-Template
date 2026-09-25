@@ -29,15 +29,10 @@ interface ImportRun {
   rows?: StagedRow[];
 }
 
-const knownRowErrors = [
-  'code_required', 'code_invalid', 'quantity_required', 'quantity_invalid', 'quantity_zero',
-  'formula_not_accepted', 'duplicate_row', 'unknown_item', 'item_inactive', 'already_has_stock', 'opening_pending',
-];
-
 /** Upload → preview with per-row reasons → confirm into a draft opening document. Nothing moves stock here. */
 export function Import({ me, warehouses, onDone, onPolicyChanged }: { me: Me; warehouses: Warehouse[]; onDone: () => void; onPolicyChanged: () => void }) {
-  const { t, locale } = useI18n();
-  const rowError = (code: string) => (knownRowErrors.includes(code) ? t(`import.rowError.${code}`) : code);
+  const { t, has, locale } = useI18n();
+  const rowError = (code: string) => (has(`import.rowError.${code}`) ? t(`import.rowError.${code}`) : code);
   const usable = warehouses.filter((w) => w.active && can(me, 'stock', 'import', w.branchId));
   const [warehouseId, setWarehouseId] = useState(usable[0]?.id ?? '');
   const [runs, setRuns] = useState<ImportRun[]>([]);

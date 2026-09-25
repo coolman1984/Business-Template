@@ -15,6 +15,8 @@ interface I18nContextValue {
   setLocale: (l: Locale) => void;
   toggleLocale: () => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
+  /** True when the key has a translation, so callers can fall back instead of showing a raw key. */
+  has: (key: string) => boolean;
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);
@@ -41,7 +43,6 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.setAttribute('lang', locale);
     document.documentElement.setAttribute('dir', dir);
-    setErrorLocale(locale);
     try {
       localStorage.setItem(STORAGE_KEY, locale);
     } catch {
@@ -50,6 +51,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [locale, dir]);
 
   const value = useMemo<I18nContextValue>(() => {
+    // Set during render, not in an effect: child effects (page loads) run before this provider's effects.
+    setErrorLocale(locale);
     const dict = dictionaries[locale];
     const fallback = dictionaries.ar;
     const t = (key: string, vars?: Record<string, string | number>) => interpolate(dict[key] ?? fallback[key] ?? key, vars);
@@ -59,6 +62,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       setLocale: setLocaleState,
       toggleLocale: () => setLocaleState((l) => (l === 'ar' ? 'en' : 'ar')),
       t,
+      has: (key: string) => key in dict || key in fallback,
     };
   }, [locale, dir]);
 

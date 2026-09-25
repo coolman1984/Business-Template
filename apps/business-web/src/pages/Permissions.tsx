@@ -31,6 +31,14 @@ interface Access {
   }[];
 }
 
+// Audit-log reasons are part of the record, so they stay the same whatever language the admin uses.
+const AUDIT_REASON = {
+  suspend: 'إيقاف من شاشة الصلاحيات',
+  reactivate: 'تفعيل من شاشة الصلاحيات',
+  unassign: 'إزالة من شاشة الصلاحيات',
+  assign: 'تعيين من شاشة الصلاحيات',
+} as const;
+
 function why(t: TFunc, e: Explanation): string {
   if (e.allow) return e.source?.kind === 'role' ? t('permissions.why.roleAllow', { role: e.source.roleName }) : t('permissions.why.exceptionAllow');
   if (e.reasonCode === 'explicit_deny') return t('permissions.why.explicitDeny');
@@ -102,11 +110,11 @@ export function Permissions({ me, onPolicyChanged }: { me: Me; onPolicyChanged: 
                 <h2>{access.member.displayName}</h2>
                 {canManageUsers && access.member.id !== me.membership.id && (
                   access.member.status === 'active' ? (
-                    <button className="danger" onClick={() => act('memberships.suspend', { membershipId: access.member.id, reason: t('permissions.suspendReason') }, t('permissions.userSuspended'))}>
+                    <button className="danger" onClick={() => act('memberships.suspend', { membershipId: access.member.id, reason: AUDIT_REASON.suspend }, t('permissions.userSuspended'))}>
                       {t('permissions.suspendUser')}
                     </button>
                   ) : (
-                    <button onClick={() => act('memberships.reactivate', { membershipId: access.member.id, reason: t('permissions.activateReason') }, t('permissions.userActivated'))}>
+                    <button onClick={() => act('memberships.reactivate', { membershipId: access.member.id, reason: AUDIT_REASON.reactivate }, t('permissions.userActivated'))}>
                       {t('permissions.activateUser')}
                     </button>
                   )
@@ -120,7 +128,7 @@ export function Permissions({ me, onPolicyChanged }: { me: Me; onPolicyChanged: 
                     <strong>{a.roleName}</strong>
                     <span>{a.scope === 'tenant' ? t('permissions.allBranches') : a.branchIds.map(branchName).join(locale === 'ar' ? '، ' : ', ')}</span>
                     {canManage && access.member.id !== me.membership.id && (
-                      <button className="link" aria-label={t('permissions.removeRole')} onClick={() => act('roles.unassign', { assignmentId: a.id, reason: t('permissions.removeReason') }, t('permissions.roleRemoved'))}>
+                      <button className="link" aria-label={t('permissions.removeRole')} onClick={() => act('roles.unassign', { assignmentId: a.id, reason: AUDIT_REASON.unassign }, t('permissions.roleRemoved'))}>
                         {t('permissions.remove')}
                       </button>
                     )}
@@ -143,7 +151,7 @@ export function Permissions({ me, onPolicyChanged }: { me: Me; onPolicyChanged: 
               )}
               {canManage && access.member.id !== me.membership.id && (
                 <AssignRole roles={roles} branches={me.branches} onAssign={(roleId, scope) =>
-                  act('roles.assign', { membershipId: access.member.id, roleId, scope, reason: t('permissions.assignReason') }, t('permissions.roleAssigned'))} />
+                  act('roles.assign', { membershipId: access.member.id, roleId, scope, reason: AUDIT_REASON.assign }, t('permissions.roleAssigned'))} />
               )}
             </div>
 

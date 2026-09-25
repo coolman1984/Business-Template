@@ -59,15 +59,7 @@ export function Tickets({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [showForm, setShowForm] = useState(false);
   const branchName = (id: string) => me.branches.find((b) => b.id === id)?.name ?? t('common.dash');
-  const statusLabel: Record<Status, string> = {
-    received: t('service.status.received'),
-    diagnosing: t('service.status.diagnosing'),
-    awaiting_approval: t('service.status.awaiting_approval'),
-    repairing: t('service.status.repairing'),
-    ready: t('service.status.ready'),
-    delivered: t('service.status.delivered'),
-    cancelled: t('service.status.cancelled'),
-  };
+  const statusLabel = (s: Status) => t(`service.status.${s}`);
 
   const load = useCallback(() => {
     get<{ tickets: Ticket[] }>('/service/tickets').then((r) => setTickets(r.tickets)).catch((e) => setMessage({ kind: 'error', text: describeError(e) }));
@@ -147,7 +139,7 @@ export function Tickets({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =
                     </td>
                     <td>{tk.device}{tk.underWarranty && <span className="badge submitted">{t('service.warranty')}</span>}</td>
                     <td className="small">{branchName(tk.branchId)}</td>
-                    <td><span className={`badge ${statusClass[tk.status]}`}>{statusLabel[tk.status]}</span></td>
+                    <td><span className={`badge ${statusClass[tk.status]}`}>{statusLabel(tk.status)}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -224,16 +216,8 @@ function ReceiveForm({ me, branches, onDone, onError }: { me: Me; branches: Me['
 
 function TicketPanel({ me, ticketId, onClose, onChanged, onPolicyChanged }: { me: Me; ticketId: string; onClose: () => void; onChanged: () => void; onPolicyChanged: () => void }) {
   const { t, locale } = useI18n();
-  const statusLabel: Record<Status, string> = {
-    received: t('service.status.received'),
-    diagnosing: t('service.status.diagnosing'),
-    awaiting_approval: t('service.status.awaiting_approval'),
-    repairing: t('service.status.repairing'),
-    ready: t('service.status.ready'),
-    delivered: t('service.status.delivered'),
-    cancelled: t('service.status.cancelled'),
-  };
-  const [t2, setT] = useState<TicketDetail | null>(null);
+  const statusLabel = (s: Status) => t(`service.status.${s}`);
+  const [ticket, setTicket] = useState<TicketDetail | null>(null);
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [note, setNote] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
@@ -244,26 +228,26 @@ function TicketPanel({ me, ticketId, onClose, onChanged, onPolicyChanged }: { me
   const load = useCallback(() => {
     get<TicketDetail>(`/service/tickets/${ticketId}`)
       .then((d) => {
-        setT(d);
+        setTicket(d);
         setDiagnosis(d.diagnosis ?? '');
       })
       .catch((e) => setMessage({ kind: 'error', text: describeError(e) }));
   }, [ticketId]);
   useEffect(load, [load]);
 
-  const canWork = t2 ? can(me, 'service_tickets', 'work', t2.branchId) : false;
-  const partsOpen = !!t2 && canWork && (t2.status === 'diagnosing' || t2.status === 'repairing');
+  const canWork = ticket ? can(me, 'service_tickets', 'work', ticket.branchId) : false;
+  const partsOpen = !!ticket && canWork && (ticket.status === 'diagnosing' || ticket.status === 'repairing');
   useEffect(() => {
     if (!partsOpen || items.length) return;
     Promise.all([get<{ items: Item[] }>('/inventory/items'), get<{ warehouses: Warehouse[] }>('/inventory/warehouses')])
       .then(([i, w]) => {
         setItems(i.items.filter((x) => x.active));
-        const mine = w.warehouses.filter((x) => x.active && x.branchId === t2!.branchId);
+        const mine = w.warehouses.filter((x) => x.active && x.branchId === ticket!.branchId);
         setWarehouses(mine);
         setPart((p) => ({ ...p, warehouseId: mine[0]?.id ?? '' }));
       })
       .catch(() => {});
-  }, [partsOpen, items.length, t2]);
+  }, [partsOpen, items.length, ticket]);
 
   const fail = (e: unknown) => {
     setMessage({ kind: 'error', text: describeError(e) });
@@ -271,16 +255,16 @@ function TicketPanel({ me, ticketId, onClose, onChanged, onPolicyChanged }: { me
   };
 
   const moveTo = async (to: Status) => {
-    if (!t2) return;
+    if (!ticket) return;
     try {
       await runCommand(me, 'service.ticket_transition', {
-        ticketId: t2.id,
-        expectedVersion: t2.version,
+        ticketId: ticket.id,
+        expectedVersion: ticket.version,
         to,
         ...(note.trim() ? { note: note.trim() } : {}),
-        ...(diagnosis.trim() && diagnosis.trim() !== (t2.diagnosis ?? '') ? { diagnosis: diagnosis.trim() } : {}),
+        ...(diagnosis.trim() && diagnosis.trim() !== (ticket.diagnosis ?? '') ? { diagnosis: diagnosis.trim() } : {}),
       });
-      setMessage({ kind: 'ok', text: t('service.panel.moved', { status: statusLabel[to] }) });
+      setMessage({ kind: 'ok', text: t('service.panel.moved', { status: statusLabel(to) }) });
       setNote('');
       load();
       onChanged();
@@ -291,11 +275,11 @@ function TicketPanel({ me, ticketId, onClose, onChanged, onPolicyChanged }: { me
 
   const useParts = async (e: FormEvent) => {
     e.preventDefault();
-    if (!t2) return;
+    if (!ticket) return;
     try {
       const { result } = await runCommand<{ stockDocumentNumber: string }>(me, 'service.ticket_use_parts', {
-        ticketId: t2.id,
-        expectedVersion: t2.version,
+        ticketId: ticket.id,
+        expectedVersion: ticket.version,
         warehouseId: part.warehouseId,
         lines: [{ itemId: part.itemId, quantity: part.quantity }],
       });
@@ -310,30 +294,30 @@ function TicketPanel({ me, ticketId, onClose, onChanged, onPolicyChanged }: { me
     }
   };
 
-  if (!t2) return <div className="card">{message ? <p className="error">{message.text}</p> : <p className="muted">{t('service.loading')}</p>}</div>;
-  const moves = next[t2.status].filter((to) => can(me, 'service_tickets', actionFor(to), t2.branchId));
-  const needsDiagnosis = t2.status === 'diagnosing' && canWork;
+  if (!ticket) return <div className="card">{message ? <p className="error">{message.text}</p> : <p className="muted">{t('service.loading')}</p>}</div>;
+  const moves = next[ticket.status].filter((to) => can(me, 'service_tickets', actionFor(to), ticket.branchId));
+  const needsDiagnosis = ticket.status === 'diagnosing' && canWork;
 
   return (
     <div className="card ticket">
       <div className="row spread">
-        <h2 dir="ltr" className="mono">{t2.ticketNumber}</h2>
+        <h2 dir="ltr" className="mono">{ticket.ticketNumber}</h2>
         <button className="link" onClick={onClose}>{t('service.panel.close')}</button>
       </div>
       {message && <p className={message.kind === 'error' ? 'error' : 'ok'} role="status">{message.text}</p>}
       <dl className="facts">
         <dt>{t('service.panel.status')}</dt>
-        <dd><span className={`badge ${statusClass[t2.status]}`}>{statusLabel[t2.status]}</span></dd>
+        <dd><span className={`badge ${statusClass[ticket.status]}`}>{statusLabel(ticket.status)}</span></dd>
         <dt>{t('service.panel.customer')}</dt>
-        <dd>{t2.customerName} · <span dir="ltr">{t2.customerPhone}</span></dd>
+        <dd>{ticket.customerName} · <span dir="ltr">{ticket.customerPhone}</span></dd>
         <dt>{t('service.panel.device')}</dt>
-        <dd>{t2.device}{t2.serialNumber && <> · <span dir="ltr" className="mono">{t2.serialNumber}</span></>}{t2.underWarranty && <span className="badge submitted">{t('service.warranty')}</span>}</dd>
+        <dd>{ticket.device}{ticket.serialNumber && <> · <span dir="ltr" className="mono">{ticket.serialNumber}</span></>}{ticket.underWarranty && <span className="badge submitted">{t('service.warranty')}</span>}</dd>
         <dt>{t('service.panel.problem')}</dt>
-        <dd>{t2.problem}</dd>
-        {t2.diagnosis && !needsDiagnosis && (
+        <dd>{ticket.problem}</dd>
+        {ticket.diagnosis && !needsDiagnosis && (
           <>
             <dt>{t('service.panel.diagnosis')}</dt>
-            <dd>{t2.diagnosis}</dd>
+            <dd>{ticket.diagnosis}</dd>
           </>
         )}
       </dl>
@@ -358,7 +342,7 @@ function TicketPanel({ me, ticketId, onClose, onChanged, onPolicyChanged }: { me
                 disabled={(to === 'cancelled' && !note.trim()) || (to === 'awaiting_approval' && !diagnosis.trim())}
                 onClick={() => moveTo(to)}
               >
-                {stepLabel(t, t2.status, to)}
+                {stepLabel(t, ticket.status, to)}
               </button>
             ))}
           </div>
@@ -366,11 +350,11 @@ function TicketPanel({ me, ticketId, onClose, onChanged, onPolicyChanged }: { me
       )}
 
       <h3>{t('service.panel.partsTitle')}</h3>
-      {t2.parts.length === 0 ? (
+      {ticket.parts.length === 0 ? (
         <p className="muted small">{t('service.panel.noParts')}</p>
       ) : (
         <ul className="parts">
-          {t2.parts.map((p) =>
+          {ticket.parts.map((p) =>
             p.lines.map((l) => (
               <li key={`${p.id}:${l.code}`}>
                 {t('service.panel.partLine', { name: l.name, qty: fmtQty(l.quantity, locale), unit: l.unit, warehouse: p.warehouse, number: p.number })}
@@ -399,13 +383,13 @@ function TicketPanel({ me, ticketId, onClose, onChanged, onPolicyChanged }: { me
         </form>
       )}
 
-      <RecordFiles me={me} resource="service_tickets" recordId={t2.id} branchId={t2.branchId} onPolicyChanged={onPolicyChanged} />
+      <RecordFiles me={me} resource="service_tickets" recordId={ticket.id} branchId={ticket.branchId} onPolicyChanged={onPolicyChanged} />
 
       <h3>{t('service.panel.historyTitle')}</h3>
       <ol className="timeline">
-        {t2.events.map((e, i) => (
+        {ticket.events.map((e, i) => (
           <li key={i}>
-            <strong>{statusLabel[e.to]}</strong> <span className="muted small">— {e.by}{locale === 'ar' ? '،' : ','} {formatDate(e.at, locale)}</span>
+            <strong>{statusLabel(e.to)}</strong> <span className="muted small">— {e.by}{locale === 'ar' ? '،' : ','} {formatDate(e.at, locale)}</span>
             {e.note && <div className="small">{e.note}</div>}
           </li>
         ))}

@@ -344,6 +344,7 @@ legend { padding: 0 var(--space-1); font-size: var(--body-sm); color: var(--text
 .content { max-width: 1280px; margin: 0 auto; padding: var(--space-6) var(--space-4); width: 100%; }
 
 /* Mobile: sidebar becomes an off-canvas drawer (DESIGN.md §5.2) */
+.menu-button { display: none; }
 .sidebar-scrim { display: none; }
 @media (max-width: 900px) {
   .sidebar {
@@ -351,9 +352,18 @@ legend { padding: 0 var(--space-1); font-size: var(--body-sm); color: var(--text
     z-index: 30;
     transform: translateX(-100%);
     box-shadow: 0 0 0 transparent;
+    /* Closed: off-screen and out of the tab order. */
+    visibility: hidden;
+    transition: transform var(--motion-standard) var(--motion-ease), visibility 0s linear var(--motion-standard);
   }
   :root[dir='rtl'] .sidebar { transform: translateX(100%); }
-  .sidebar.mobile-open { transform: translateX(0); box-shadow: 0 0 32px hsl(var(--shadow-color) / 0.25); }
+  /* Same specificity as the RTL rule above, so opening works in Arabic too. */
+  :root .sidebar.mobile-open, :root[dir='rtl'] .sidebar.mobile-open {
+    transform: translateX(0); visibility: visible;
+    transition: transform var(--motion-standard) var(--motion-ease);
+    box-shadow: 0 0 32px hsl(var(--shadow-color) / 0.25);
+  }
+  .menu-button { display: inline-flex; }
   .sidebar.collapsed { width: var(--sidebar-width); }
   .sidebar.collapsed .nav-item span, .sidebar.collapsed .sidebar-brand .name { display: inline; }
   .sidebar.collapsed .nav-item { justify-content: flex-start; }

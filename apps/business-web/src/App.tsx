@@ -47,6 +47,15 @@ export function App() {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileNavOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mobileNavOpen]);
+
   const signOut = async () => {
     await post('/api/auth/sign-out', {});
     setStage({ kind: 'signed-out' });
@@ -103,7 +112,7 @@ export function App() {
       <div className="shell-main">
         <header className="topbar">
           <div className="topbar-start">
-            <button className="icon-button" aria-label={t('shell.toggleMenu')} onClick={() => setMobileNavOpen((v) => !v)}>
+            <button className="icon-button menu-button" aria-label={t('shell.toggleMenu')} aria-expanded={mobileNavOpen} onClick={() => setMobileNavOpen((v) => !v)}>
               <MenuIcon size={18} />
             </button>
           </div>
@@ -126,7 +135,8 @@ export function App() {
             </button>
           </div>
         </header>
-        <main className="content">
+        {/* Keyed by language: pages remount on a switch, so messages already on screen never stay in the old language. */}
+        <main className="content" key={locale}>
           {current === 'permissions' ? (
             <Permissions me={me} onPolicyChanged={refresh} />
           ) : current === 'service' ? (

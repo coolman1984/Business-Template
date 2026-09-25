@@ -29,10 +29,9 @@ export const formatDate = (d: string, locale: Locale) => new Date(d).toLocaleStr
 
 /** Files attached to one record (an order, a service ticket…): upload, new version, download any clean version, recycle bin. */
 export function RecordFiles({ me, resource, recordId, branchId, onPolicyChanged }: { me: Me; resource: string; recordId: string; branchId: string; onPolicyChanged: () => void }) {
-  const { t, locale } = useI18n();
+  const { t, has, locale } = useI18n();
   const scanLabel = { pending: t('files.scan.pending'), clean: t('files.scan.clean'), rejected: t('files.scan.rejected') } as const;
-  const knownRejectReasons = ['archive_not_allowed', 'executable', 'unsupported_type', 'active_content', 'extension_mismatch', 'content_mismatch', 'content_missing'];
-  const rejectLabel = (code: string) => (knownRejectReasons.includes(code) ? t(`files.reject.${code}`) : t('files.reject.default'));
+  const rejectLabel = (code: string) => (has(`files.reject.${code}`) ? t(`files.reject.${code}`) : t('files.reject.default'));
   const [files, setFiles] = useState<StoredFile[] | null>(null);
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);

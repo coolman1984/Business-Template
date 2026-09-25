@@ -3,11 +3,14 @@ import { ApiError, describeError, runCommand, type Me } from '../../api';
 import { useI18n } from '../../i18n';
 import type { Item, Warehouse } from './types';
 
+// Stored with the item, so it must not depend on the language of whoever creates it.
+const DEFAULT_UNIT = 'قطعة';
+
 /** Items (company-wide) and warehouses (one branch each). Deactivating keeps history; nothing is deleted. */
 export function Setup({ me, items, warehouses, onChanged, onPolicyChanged }: { me: Me; items: Item[]; warehouses: Warehouse[]; onChanged: () => void; onPolicyChanged: () => void }) {
   const { t } = useI18n();
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
-  const [item, setItem] = useState({ code: '', name: '', unit: t('setup.defaultUnit') });
+  const [item, setItem] = useState({ code: '', name: '', unit: DEFAULT_UNIT });
   const [wh, setWh] = useState({ branchId: me.branches[0]?.id ?? '', code: '', name: '' });
   const branchName = (id: string) => me.branches.find((b) => b.id === id)?.name ?? t('common.dash');
 
