@@ -24,6 +24,8 @@ export interface CommandExecution<S> {
  */
 export interface CommandDefinition<I, S, O> {
   readonly name: string;
+  /** Internal commands are dispatched by trusted server code only (e.g. with server-generated storage keys). */
+  readonly internal?: boolean;
   readonly inputSchema: object;
   /** Every permission `plan` may ask for. Checked against the capability registry at registration. */
   readonly requires: readonly { readonly resource: string; readonly action: string }[];
@@ -36,6 +38,11 @@ export interface DispatchOptions {
   readonly idempotencyKey: string;
   /** Policy version the caller's screen was built from. Required for commands with sensitive actions. */
   readonly policyVersion?: string | undefined;
+  /**
+   * What identifies "the same request" for idempotency, when the input carries server-generated
+   * values (e.g. a fresh quarantine key per upload attempt). Defaults to the whole input.
+   */
+  readonly fingerprint?: unknown;
 }
 
 export interface DispatchResult<O> {
@@ -75,6 +82,11 @@ export class CommandDispatcher {
     return [...this.commands.keys()];
   }
 
+  isPublic(name: string): boolean {
+    const entry = this.commands.get(name);
+    return entry !== undefined && !entry.def.internal;
+  }
+
   async dispatch<O = unknown>(
     ctx: RequestContext,
     name: string,
@@ -88,7 +100,7 @@ export class CommandDispatcher {
     if (typeof idempotencyKey !== 'string' || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
       throw new ValidationError({ idempotencyKey: 'required, 8-200 characters' });
     }
-    const requestHash = hashRequest(name, input);
+    const requestHash = hashRequest(name, options.fingerprint ?? input);
 
     for (let attempt = 1; ; attempt++) {
       try {
@@ -119,9 +131,7 @@ export class CommandDispatcher {
     { idempotencyKey, policyVersion }: DispatchOptions,
     requestHash: string,
   ): Promise<DispatchResult<O>> {
-    // The operation id marks this transaction as a command; the database rejects business writes without it.
-    const operationId = randomUUID();
-    await sql`SELECT set_config('app.operation_id', ${operationId}, true)`.execute(trx);
+    const operationId = await beginOperation(trx);
 
     const claim = await claimIdempotencyKey(trx, ctx, idempotencyKey, def.name, requestHash);
     if (!claim.fresh) {
@@ -155,15 +165,34 @@ export class CommandDispatcher {
     }
 
     const { result, audit } = await def.execute(trx, input, { ctx, operationId, subject, state });
-    if (audit.length === 0) throw new Error(`Command ${def.name} completed without an audit entry`);
-    await writeAuditEntries(trx, ctx, { operationId, command: def.name, policyVersion: subject.policyVersion }, audit);
-    await assertEveryChangeAudited(trx, def.name, operationId, audit);
+    await completeOperation(trx, ctx, { operationId, command: def.name, policyVersion: subject.policyVersion }, audit);
 
     await storeIdempotentResponse(trx, ctx, idempotencyKey, { operationId, result });
     return { operationId, result, replayed: false };
   }
 }
 
+/**
+ * Marks the transaction as one business operation. The database rejects business writes in a
+ * transaction without an operation id and journals every row changed under it.
+ */
+export async function beginOperation(trx: Tx): Promise<string> {
+  const operationId = randomUUID();
+  await sql`SELECT set_config('app.operation_id', ${operationId}, true)`.execute(trx);
+  return operationId;
+}
+
+/** Writes the operation's audit entries and verifies they cover every changed row. Call last, before commit. */
+export async function completeOperation(
+  trx: Tx,
+  ctx: RequestContext,
+  meta: { operationId: string; command: string; policyVersion: string },
+  audit: readonly AuditEntry[],
+): Promise<void> {
+  if (audit.length === 0) throw new Error(`Command ${meta.command} completed without an audit entry`);
+  await writeAuditEntries(trx, ctx, meta, audit);
+  await assertEveryChangeAudited(trx, meta.command, meta.operationId, audit);
+}
 
 /** Every row the database journalled for this operation must be covered by an audit entry. */
 async function assertEveryChangeAudited(trx: Tx, command: string, operationId: string, audit: readonly AuditEntry[]): Promise<void> {

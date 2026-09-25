@@ -115,6 +115,9 @@ export interface OrdersTable {
   created_by: string;
   updated_at: Timestamp;
   updated_by: string;
+  deleted_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
+  deleted_by: string | null;
+  deletion_reason: string | null;
 }
 
 interface CoreDatabase {
@@ -175,10 +178,93 @@ export interface RowChangesTable {
   changed_at: Timestamp;
 }
 
-export interface Database extends CoreDatabase {
+export interface Database extends CoreDatabase, PhaseTwoTables {
   roles: RolesTable;
   role_permissions: RolePermissionsTable;
   role_assignments: RoleAssignmentsTable;
   role_assignment_branches: RoleAssignmentBranchesTable;
   row_changes: RowChangesTable;
+}
+
+export interface JobsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  kind: string;
+  payload: ColumnType<unknown, string, string>;
+  dedupe_key: string;
+  status: Generated<'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'>;
+  attempts: Generated<number>;
+  max_attempts: ColumnType<number, number | undefined, number>;
+  run_after: ColumnType<Date, Date | string | undefined, Date | string>;
+  locked_by: string | null;
+  lease_until: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  progress: ColumnType<unknown, string | null, string | null>;
+  result: ColumnType<unknown, string | null, string | null>;
+  last_error: string | null;
+  created_by: string;
+  operation_id: string | null;
+  created_at: Timestamp;
+  finished_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+}
+
+export interface FileAssetsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  display_name: string;
+  classification: Generated<'normal' | 'confidential'>;
+  current_version_id: string | null;
+  version: Generated<number>;
+  created_at: Timestamp;
+  created_by: string;
+  deleted_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  deleted_by: string | null;
+  deletion_reason: string | null;
+}
+
+export interface FileVersionsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  file_id: string;
+  version_number: number;
+  content_hash: string;
+  size_bytes: ColumnType<string, number | string, number | string>;
+  quarantine_key: string;
+  storage_key: string | null;
+  original_name: string;
+  declared_type: string | null;
+  detected_type: string | null;
+  scan_status: Generated<'pending' | 'clean' | 'rejected'>;
+  reject_reason: string | null;
+  uploaded_at: Timestamp;
+  uploaded_by: string;
+}
+
+export interface FileLinksTable {
+  tenant_id: string;
+  file_id: string;
+  resource: string;
+  record_id: string;
+  branch_id: string;
+  purpose: Generated<string>;
+}
+
+export interface AccessLogTable {
+  tenant_id: string;
+  id: Generated<string>;
+  occurred_at: Timestamp;
+  membership_id: string;
+  session_id: string | null;
+  resource: string;
+  record_id: string;
+  action: string;
+  details: ColumnType<unknown, string, never>;
+  request_id: string | null;
+}
+
+export interface PhaseTwoTables {
+  jobs: JobsTable;
+  file_assets: FileAssetsTable;
+  file_versions: FileVersionsTable;
+  file_links: FileLinksTable;
+  access_log: AccessLogTable;
 }

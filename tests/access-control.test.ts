@@ -136,7 +136,8 @@ describe('roles', () => {
   it('shows each person only the actions they hold, per branch', async () => {
     const me = (await h.get(m(nour, 'storekeeper'), '/me')).json();
     const caps = Object.fromEntries(me.capabilities.map((c: { resource: string; action: string; branchIds: string[] }) => [`${c.resource}.${c.action}`, c.branchIds]));
-    expect(caps).toEqual({ 'orders.view': [nour.branches.CAI], 'orders.create': [nour.branches.CAI], 'orders.update': [nour.branches.CAI] });
+    const cai = [nour.branches.CAI];
+    expect(caps).toEqual({ 'orders.view': cai, 'orders.create': cai, 'orders.update': cai, 'attachments.view': cai, 'attachments.upload': cai });
   });
 
   it('applies a role change to everyone holding the role, and rejects stale role edits', async () => {

@@ -14,7 +14,8 @@
     "db:seed-demo": "tsx scripts/seed-demo.ts",
     "start": "tsx apps/api/src/main.ts",
     "build:web": "vite build apps/business-web",
-    "dev:web": "vite apps/business-web"
+    "dev:web": "vite apps/business-web",
+    "worker": "tsx apps/api/src/worker.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",

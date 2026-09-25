@@ -18,6 +18,7 @@ export interface AuthConfig {
  */
 export function createAuth(config: AuthConfig) {
   const pool = new pg.Pool({ connectionString: config.databaseUrl, options: '-c search_path=auth', max: 5 });
+  pool.on('error', (error) => console.warn(`identity database connection lost: ${error.message}`));
   const auth = betterAuth({
     database: pool,
     secret: config.secret,

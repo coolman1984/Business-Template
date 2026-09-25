@@ -12,3 +12,7 @@ export * from './capabilities.js';
 export * from './permission-queries.js';
 export type { Database } from './schema.js';
 export * from './tenant-transaction.js';
+export * from './files.js';
+export * from './jobs.js';
+export * from './storage.js';
+export * from './job-center.js';

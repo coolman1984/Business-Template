@@ -3,7 +3,10 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import pg from 'pg';
 import { buildApp } from '../apps/api/src/app.js';
 import { LibraryIdentity, createAuth } from '../apps/api/src/auth.js';
-import { createDb, type Db } from '../packages/platform-core/src/index.js';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { FileSystemStorage, JobWorker, createDb, fileJobHandlers, type Db } from '../packages/platform-core/src/index.js';
 import { createDatabase, migrate, withDatabase } from '../scripts/db-tools.js';
 import { seedTenants, type SeededMember, type SeededTenant } from '../scripts/fixtures.js';
 
@@ -37,6 +40,7 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   const tenants = await seedTenants(ownerUrl);
   const app = createDb(appUrl);
   const owner = new pg.Pool({ connectionString: ownerUrl, max: 2 });
+  owner.on('error', () => {}); // dropped when the test database is removed
   return {
     ownerUrl,
     appUrl,
@@ -73,6 +77,10 @@ export const PUBLIC_URL = 'http://factory.test';
 
 export interface TestApi {
   api: FastifyInstance;
+  storage: FileSystemStorage;
+  /** Processes every ready background job (a worker in this test process). */
+  runJobs(): Promise<number>;
+  upload(member: SeededMember, url: string, content: Buffer | string, fileName: string, key?: string): Promise<LightMyRequestResponse>;
   /** Signs in (password) and returns the bearer session token. */
   signIn(member: SeededMember): Promise<string>;
   /** Signs in and selects the member's company; cached per member. */
@@ -85,7 +93,10 @@ export interface TestApi {
 
 export async function createTestApi(t: TestDatabase): Promise<TestApi> {
   const { auth, close } = createAuth({ databaseUrl: t.authUrl, secret: randomBytes(32).toString('base64'), publicUrl: PUBLIC_URL, rateLimit: false });
-  const api = buildApp({ db: t.app, identity: new LibraryIdentity(auth), authHandler: auth.handler, publicUrl: PUBLIC_URL });
+  const filesDir = await mkdtemp(join(tmpdir(), 'factory-files-'));
+  const storage = new FileSystemStorage(filesDir);
+  const worker = new JobWorker(t.app, fileJobHandlers(storage), { workerId: 'test-worker' });
+  const api = buildApp({ db: t.app, identity: new LibraryIdentity(auth), authHandler: auth.handler, publicUrl: PUBLIC_URL, storage });
   await api.ready();
   const tokens = new Map<string, string>();
 
@@ -134,5 +145,33 @@ export async function createTestApi(t: TestDatabase): Promise<TestApi> {
     return api.inject({ method: 'POST', url: `/commands/${name}`, headers, payload: body as object });
   }
 
-  return { api, signIn, tokenFor, command, get, post, close: async () => { await api.close(); await close(); } };
+  const upload = async (member: SeededMember, url: string, content: Buffer | string, fileName: string, key: string = randomUUID()) =>
+    api.inject({
+      method: 'POST',
+      url,
+      headers: {
+        authorization: `Bearer ${await tokenFor(member)}`,
+        'idempotency-key': key,
+        'content-type': 'application/octet-stream',
+        'x-file-name': encodeURIComponent(fileName),
+      },
+      payload: typeof content === 'string' ? Buffer.from(content) : content,
+    });
+
+  return {
+    api,
+    storage,
+    runJobs: () => worker.drain(),
+    upload,
+    signIn,
+    tokenFor,
+    command,
+    get,
+    post,
+    close: async () => {
+      await api.close();
+      await close();
+      await rm(filesDir, { recursive: true, force: true });
+    },
+  };
 }

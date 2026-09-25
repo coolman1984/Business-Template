@@ -6,6 +6,7 @@ import {
   loadSubject,
   nextDocumentNumber,
   withTenantTransaction,
+  type AttachmentTarget,
   type CapabilityManifest,
   type CommandDefinition,
   type Db,
@@ -27,6 +28,8 @@ export const ordersCapabilities: CapabilityManifest = {
         { key: 'create', label: { ar: 'إنشاء', en: 'Create' } },
         { key: 'update', label: { ar: 'تعديل مسودة', en: 'Edit draft' } },
         { key: 'submit', label: { ar: 'اعتماد وإرسال', en: 'Submit' }, sensitive: true },
+        { key: 'delete', label: { ar: 'حذف مسودة', en: 'Delete draft' } },
+        { key: 'restore', label: { ar: 'استرجاع', en: 'Restore' } },
       ],
     },
   ],
@@ -43,12 +46,23 @@ export interface OrderView {
   version: number;
 }
 
-async function lockOrder(trx: Tx, orderId: string) {
+async function lockOrder(trx: Tx, orderId: string, { includeDeleted = false } = {}) {
   // Row-level security makes another tenant's order indistinguishable from a missing one.
-  const order = await trx.selectFrom('orders').selectAll().where('id', '=', orderId).forUpdate().executeTakeFirst();
+  let q = trx.selectFrom('orders').selectAll().where('id', '=', orderId);
+  if (!includeDeleted) q = q.where('deleted_at', 'is', null);
+  const order = await q.forUpdate().executeTakeFirst();
   if (!order) throw new NotFoundError('order');
   return order;
 }
+
+/** Files attach to orders and follow the order's branch; an order in the recycle bin accepts none. */
+export const orderAttachmentTarget: AttachmentTarget = {
+  resource: ORDERS,
+  async resolve(trx, recordId) {
+    const order = await trx.selectFrom('orders').select('branch_id').where('id', '=', recordId).where('deleted_at', 'is', null).executeTakeFirst();
+    return order ? { branchId: order.branch_id } : null;
+  },
+};
 
 function assertVersion(actual: number, expected: number): void {
   if (actual !== expected) {
@@ -224,7 +238,104 @@ export const submitOrder: CommandDefinition<SubmitInput, LockedOrder, OrderView>
   },
 };
 
-export const orderCommands = [createOrder, updateOrder, submitOrder];
+interface LifecycleInput {
+  orderId: string;
+  expectedVersion: number;
+  reason: string;
+}
+
+const lifecycleSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['orderId', 'expectedVersion', 'reason'],
+  properties: {
+    orderId: { type: 'string', pattern: uuidPattern },
+    expectedVersion: { type: 'integer', minimum: 1 },
+    reason: { type: 'string', minLength: 3, maxLength: 500 },
+  },
+};
+
+/** Only drafts can be deleted, and deletion is reversible (recycle bin). Submitted orders are cancelled instead. */
+export const deleteOrder: CommandDefinition<LifecycleInput, LockedOrder, OrderView> = {
+  name: 'orders.delete',
+  requires: [{ resource: ORDERS, action: 'delete' }],
+  inputSchema: lifecycleSchema,
+  async plan(trx, input) {
+    const order = await lockOrder(trx, input.orderId);
+    return { checks: [{ resource: ORDERS, action: 'delete', branchId: order.branch_id }], state: order };
+  },
+  async execute(trx, input, { ctx, state: order }) {
+    assertVersion(order.version, input.expectedVersion);
+    if (order.status !== 'draft') throw new ConflictError('not_deletable', 'Only draft orders can be deleted.');
+    const row = await trx
+      .updateTable('orders')
+      .set({ deleted_at: new Date(), deleted_by: ctx.membershipId, deletion_reason: input.reason, version: order.version + 1, updated_at: new Date(), updated_by: ctx.membershipId })
+      .where('id', '=', order.id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return {
+      result: toView(row),
+      audit: [{ resource: ORDERS, recordId: order.id, action: 'delete', changes: { deleted: [false, true], reason: [null, input.reason], version: [order.version, row.version] } }],
+    };
+  },
+};
+
+export const restoreOrder: CommandDefinition<LifecycleInput, LockedOrder, OrderView> = {
+  name: 'orders.restore',
+  requires: [{ resource: ORDERS, action: 'restore' }],
+  inputSchema: lifecycleSchema,
+  async plan(trx, input) {
+    const order = await lockOrder(trx, input.orderId, { includeDeleted: true });
+    return { checks: [{ resource: ORDERS, action: 'restore', branchId: order.branch_id }], state: order };
+  },
+  async execute(trx, input, { ctx, state: order }) {
+    assertVersion(order.version, input.expectedVersion);
+    if (!order.deleted_at) throw new ConflictError('not_deleted', 'The order is not in the recycle bin.');
+    const row = await trx
+      .updateTable('orders')
+      .set({ deleted_at: null, deleted_by: null, deletion_reason: null, version: order.version + 1, updated_at: new Date(), updated_by: ctx.membershipId })
+      .where('id', '=', order.id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return {
+      result: toView(row),
+      audit: [{ resource: ORDERS, recordId: order.id, action: 'restore', changes: { deleted: [true, false], reason: [null, input.reason], version: [order.version, row.version] } }],
+    };
+  },
+};
+
+export const orderCommands = [createOrder, updateOrder, submitOrder, deleteOrder, restoreOrder];
+
+/** Deleted orders the caller may restore, for the recycle bin. */
+export async function listDeletedOrders(db: Db, ctx: RequestContext) {
+  return withTenantTransaction(db, ctx, async (trx) => {
+    const subject = await loadSubject(trx, ctx.membershipId);
+    if (!subject) return [];
+    const scope = effectiveBranchScope(subject, ORDERS, 'restore');
+    if (!scope.all && scope.branchIds.length === 0) return [];
+    let q = trx
+      .selectFrom('orders as o')
+      .innerJoin('memberships as m', 'm.id', 'o.deleted_by')
+      .select(['o.id', 'o.order_number', 'o.branch_id', 'o.customer_name', 'o.version', 'o.deleted_at', 'o.deletion_reason', 'm.display_name as deleted_by_name'])
+      .where('o.deleted_at', 'is not', null)
+      .orderBy('o.deleted_at', 'desc')
+      .limit(200);
+    if (scope.all) {
+      if (scope.exceptBranchIds.length > 0) q = q.where('o.branch_id', 'not in', scope.exceptBranchIds);
+    } else q = q.where('o.branch_id', 'in', scope.branchIds);
+    return (await q.execute()).map((r) => ({
+      resource: ORDERS,
+      id: r.id,
+      name: `${r.order_number} — ${r.customer_name}`,
+      branchId: r.branch_id,
+      version: r.version,
+      deletedAt: r.deleted_at,
+      deletedBy: r.deleted_by_name,
+      reason: r.deletion_reason,
+      restorable: true,
+    }));
+  });
+}
 
 /** Orders the caller may view, filtered by the same grants the commands use. */
 export async function listOrders(db: Db, ctx: RequestContext): Promise<OrderView[]> {
@@ -233,7 +344,7 @@ export async function listOrders(db: Db, ctx: RequestContext): Promise<OrderView
     if (!subject) return [];
     const scope = effectiveBranchScope(subject, ORDERS, 'view');
     if (!scope.all && scope.branchIds.length === 0) return [];
-    let query = trx.selectFrom('orders').selectAll().orderBy('created_at', 'desc').limit(200);
+    let query = trx.selectFrom('orders').selectAll().where('deleted_at', 'is', null).orderBy('created_at', 'desc').limit(200);
     if (scope.all) {
       if (scope.exceptBranchIds.length > 0) query = query.where('branch_id', 'not in', scope.exceptBranchIds);
     } else {

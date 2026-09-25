@@ -225,7 +225,10 @@ describe('write guard: business writes only through commands', () => {
 
 describe('schema conventions (a new table cannot silently skip them)', () => {
   // Tables that hold tenant data but are infrastructure, not business records.
-  const INFRASTRUCTURE = new Set(['audit_events', 'security_events', 'idempotency_keys', 'document_sequences', 'row_changes', 'tenants']);
+  const INFRASTRUCTURE = new Set([
+    'audit_events', 'security_events', 'idempotency_keys', 'document_sequences', 'row_changes', 'tenants',
+    'jobs', 'access_log', 'audit_archive',
+  ]);
 
   it('enables row-level security with a tenant policy on every table that has tenant_id', async () => {
     const missing = await t.ownerQuery<{ table_name: string }>(`
