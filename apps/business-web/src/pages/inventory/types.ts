@@ -1,3 +1,5 @@
+import type { Locale, TFunc } from '../../i18n';
+
 export interface Item {
   id: string;
   code: string;
@@ -37,8 +39,8 @@ export interface StockDocument {
   lines: { itemId: string; code: string; name: string; unit: string; quantity: string }[];
 }
 
-export const typeLabel: Record<DocType, string> = { opening: 'رصيد افتتاحي', receipt: 'استلام', issue: 'صرف', reversal: 'عكس' };
-export const statusLabel = { draft: 'مسودة', posted: 'مُرحّل', cancelled: 'ملغى' } as const;
+export const typeLabel = (t: TFunc, type: DocType): string => t(`inventory.docType.${type}`);
+export const statusLabel = (t: TFunc, status: 'draft' | 'posted' | 'cancelled'): string => t(`inventory.docStatus.${status}`);
 export const statusClass = { draft: '', posted: 'submitted', cancelled: 'cancelled' } as const;
 export const QUANTITY_RE = /^(0|[1-9][0-9]{0,14})(\.[0-9]{1,3})?$/;
 
@@ -46,4 +48,4 @@ export const QUANTITY_RE = /^(0|[1-9][0-9]{0,14})(\.[0-9]{1,3})?$/;
 export const latinDigits = (s: string) =>
   s.replace(/[٠-٩۰-۹]/g, (d) => String((d.charCodeAt(0) & 0xf) % 10)).replace(/٫/g, '.').trim();
 
-export const fmtQty = (q: string) => Number(q).toLocaleString('ar-EG', { maximumFractionDigits: 3 });
+export const fmtQty = (q: string, locale: Locale) => Number(q).toLocaleString(locale === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 3 });

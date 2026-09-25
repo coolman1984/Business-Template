@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { ApiError, can, describeError, get, post, runCommand, type Branch, type Label, type Me } from '../api';
+import { ApiError, can, describeError, get, pickLabel, post, runCommand, type Branch, type Label, type Me } from '../api';
+import { useI18n, type TFunc } from '../i18n';
 
 interface Member {
   id: string;
@@ -30,14 +31,15 @@ interface Access {
   }[];
 }
 
-function why(e: Explanation): string {
-  if (e.allow) return e.source?.kind === 'role' ? `مسموح بدور «${e.source.roleName}»` : 'مسموح باستثناء شخصي';
-  if (e.reasonCode === 'explicit_deny') return 'ممنوع باستثناء شخصي صريح';
-  if (e.reasonCode === 'membership_inactive') return 'المستخدم موقوف';
-  return 'لا توجد صلاحية';
+function why(t: TFunc, e: Explanation): string {
+  if (e.allow) return e.source?.kind === 'role' ? t('permissions.why.roleAllow', { role: e.source.roleName }) : t('permissions.why.exceptionAllow');
+  if (e.reasonCode === 'explicit_deny') return t('permissions.why.explicitDeny');
+  if (e.reasonCode === 'membership_inactive') return t('permissions.why.inactive');
+  return t('permissions.why.none');
 }
 
 export function Permissions({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () => void }) {
+  const { t, locale } = useI18n();
   const [members, setMembers] = useState<Member[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -75,14 +77,14 @@ export function Permissions({ me, onPolicyChanged }: { me: Me; onPolicyChanged: 
   return (
     <section className="split">
       <aside className="card list">
-        <h2>المستخدمون</h2>
+        <h2>{t('permissions.users')}</h2>
         <ul>
           {members.map((m) => (
             <li key={m.id}>
               <button className={selected === m.id ? 'item active' : 'item'} onClick={() => setSelected(m.id)}>
                 <span>{m.displayName}</span>
-                {m.status === 'suspended' && <span className="badge cancelled">موقوف</span>}
-                {m.id === me.membership.id && <span className="badge">أنت</span>}
+                {m.status === 'suspended' && <span className="badge cancelled">{t('permissions.suspended')}</span>}
+                {m.id === me.membership.id && <span className="badge">{t('permissions.you')}</span>}
               </button>
             </li>
           ))}
@@ -92,7 +94,7 @@ export function Permissions({ me, onPolicyChanged }: { me: Me; onPolicyChanged: 
       <div className="detail">
         {message && <p className={message.kind === 'error' ? 'error' : 'ok'} role="status">{message.text}</p>}
         {!access ? (
-          <div className="card muted">اختر مستخدمًا لعرض صلاحياته.</div>
+          <div className="card muted">{t('permissions.selectUser')}</div>
         ) : (
           <>
             <div className="card">
@@ -100,26 +102,26 @@ export function Permissions({ me, onPolicyChanged }: { me: Me; onPolicyChanged: 
                 <h2>{access.member.displayName}</h2>
                 {canManageUsers && access.member.id !== me.membership.id && (
                   access.member.status === 'active' ? (
-                    <button className="danger" onClick={() => act('memberships.suspend', { membershipId: access.member.id, reason: 'إيقاف من شاشة الصلاحيات' }, 'تم إيقاف المستخدم')}>
-                      إيقاف المستخدم
+                    <button className="danger" onClick={() => act('memberships.suspend', { membershipId: access.member.id, reason: t('permissions.suspendReason') }, t('permissions.userSuspended'))}>
+                      {t('permissions.suspendUser')}
                     </button>
                   ) : (
-                    <button onClick={() => act('memberships.reactivate', { membershipId: access.member.id, reason: 'تفعيل من شاشة الصلاحيات' }, 'تم تفعيل المستخدم')}>
-                      تفعيل المستخدم
+                    <button onClick={() => act('memberships.reactivate', { membershipId: access.member.id, reason: t('permissions.activateReason') }, t('permissions.userActivated'))}>
+                      {t('permissions.activateUser')}
                     </button>
                   )
                 )}
               </div>
-              <h3>الأدوار</h3>
-              {access.roleAssignments.length === 0 && <p className="muted">لا توجد أدوار.</p>}
+              <h3>{t('permissions.roles')}</h3>
+              {access.roleAssignments.length === 0 && <p className="muted">{t('permissions.noRoles')}</p>}
               <ul className="chips">
                 {access.roleAssignments.map((a) => (
                   <li key={a.id} className="chip">
                     <strong>{a.roleName}</strong>
-                    <span>{a.scope === 'tenant' ? 'كل الفروع الحالية والمستقبلية' : a.branchIds.map(branchName).join('، ')}</span>
+                    <span>{a.scope === 'tenant' ? t('permissions.allBranches') : a.branchIds.map(branchName).join(locale === 'ar' ? '، ' : ', ')}</span>
                     {canManage && access.member.id !== me.membership.id && (
-                      <button className="link" aria-label="إزالة الدور" onClick={() => act('roles.unassign', { assignmentId: a.id, reason: 'إزالة من شاشة الصلاحيات' }, 'تمت إزالة الدور')}>
-                        إزالة
+                      <button className="link" aria-label={t('permissions.removeRole')} onClick={() => act('roles.unassign', { assignmentId: a.id, reason: t('permissions.removeReason') }, t('permissions.roleRemoved'))}>
+                        {t('permissions.remove')}
                       </button>
                     )}
                   </li>
@@ -127,13 +129,13 @@ export function Permissions({ me, onPolicyChanged }: { me: Me; onPolicyChanged: 
               </ul>
               {access.exceptions.length > 0 && (
                 <>
-                  <h3>استثناءات شخصية</h3>
+                  <h3>{t('permissions.exceptions')}</h3>
                   <ul className="chips">
                     {access.exceptions.map((x) => (
                       <li key={x.id} className={`chip ${x.effect}`}>
-                        <strong>{x.effect === 'deny' ? 'منع' : 'سماح'}</strong>
+                        <strong>{x.effect === 'deny' ? t('permissions.effect.deny') : t('permissions.effect.allow')}</strong>
                         <span>{x.resource}.{x.action}</span>
-                        <span>{x.scope.kind === 'tenant' ? 'كل الشركة' : x.scope.branchIds.map(branchName).join('، ')}</span>
+                        <span>{x.scope.kind === 'tenant' ? t('permissions.scopeCompanyWide') : x.scope.branchIds.map(branchName).join(locale === 'ar' ? '، ' : ', ')}</span>
                       </li>
                     ))}
                   </ul>
@@ -141,19 +143,19 @@ export function Permissions({ me, onPolicyChanged }: { me: Me; onPolicyChanged: 
               )}
               {canManage && access.member.id !== me.membership.id && (
                 <AssignRole roles={roles} branches={me.branches} onAssign={(roleId, scope) =>
-                  act('roles.assign', { membershipId: access.member.id, roleId, scope, reason: 'تعيين من شاشة الصلاحيات' }, 'تم تعيين الدور')} />
+                  act('roles.assign', { membershipId: access.member.id, roleId, scope, reason: t('permissions.assignReason') }, t('permissions.roleAssigned'))} />
               )}
             </div>
 
             <div className="card">
-              <h3>النتيجة الفعلية</h3>
-              <p className="muted small">كل خانة محسوبة بنفس القاعدة التي تطبقها الخوادم. مرّر المؤشر لمعرفة السبب.</p>
+              <h3>{t('permissions.effectiveResult')}</h3>
+              <p className="muted small">{t('permissions.effectiveNote')}</p>
               <div className="scroll">
                 <table className="matrix">
                   <thead>
                     <tr>
-                      <th>المورد</th>
-                      <th>العملية</th>
+                      <th>{t('permissions.table.resource')}</th>
+                      <th>{t('permissions.table.action')}</th>
                       {access.branches.map((b) => <th key={b.id}>{b.name}</th>)}
                     </tr>
                   </thead>
@@ -161,18 +163,18 @@ export function Permissions({ me, onPolicyChanged }: { me: Me; onPolicyChanged: 
                     {access.matrix.flatMap((r) =>
                       r.actions.map((a, i) => (
                         <tr key={`${r.resource}.${a.action}`}>
-                          {i === 0 && <th rowSpan={r.actions.length}>{r.label.ar}</th>}
-                          <td>{a.label.ar}{a.sensitive && <span className="badge warn" title="عملية حساسة">حساسة</span>}</td>
+                          {i === 0 && <th rowSpan={r.actions.length}>{pickLabel(r.label, locale)}</th>}
+                          <td>{pickLabel(a.label, locale)}{a.sensitive && <span className="badge warn" title={t('permissions.sensitiveTitle')}>{t('permissions.sensitive')}</span>}</td>
                           {r.scope === 'tenant' ? (
-                            <td colSpan={access.branches.length} className={a.company.allow ? 'yes' : 'no'} title={why(a.company)}>
-                              {a.company.allow ? '✓ كل الشركة' : '—'}
+                            <td colSpan={access.branches.length} className={a.company.allow ? 'yes' : 'no'} title={why(t, a.company)}>
+                              {a.company.allow ? t('permissions.wholeCompany') : t('common.dash')}
                             </td>
                           ) : (
                             access.branches.map((b) => {
                               const e = a.branches[b.id]!;
                               return (
-                                <td key={b.id} className={e.allow ? 'yes' : e.reasonCode === 'explicit_deny' ? 'deny' : 'no'} title={why(e)}>
-                                  {e.allow ? '✓' : e.reasonCode === 'explicit_deny' ? '⛔' : '—'}
+                                <td key={b.id} className={e.allow ? 'yes' : e.reasonCode === 'explicit_deny' ? 'deny' : 'no'} title={why(t, e)}>
+                                  {e.allow ? '✓' : e.reasonCode === 'explicit_deny' ? '⛔' : t('common.dash')}
                                 </td>
                               );
                             })
@@ -194,6 +196,7 @@ export function Permissions({ me, onPolicyChanged }: { me: Me; onPolicyChanged: 
 }
 
 function AssignRole({ roles, branches, onAssign }: { roles: Role[]; branches: Branch[]; onAssign: (roleId: string, scope: unknown) => void }) {
+  const { t } = useI18n();
   const [roleId, setRoleId] = useState('');
   const [all, setAll] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
@@ -203,13 +206,13 @@ function AssignRole({ roles, branches, onAssign }: { roles: Role[]; branches: Br
   };
   return (
     <form className="assign" onSubmit={submit}>
-      <h3>إضافة دور</h3>
+      <h3>{t('permissions.addRole')}</h3>
       <select value={roleId} onChange={(e) => setRoleId(e.target.value)} required>
-        <option value="">اختر دورًا…</option>
+        <option value="">{t('permissions.chooseRole')}</option>
         {roles.map((r) => <option key={r.id} value={r.id}>{r.name} — {r.description}</option>)}
       </select>
       <fieldset>
-        <legend>النطاق</legend>
+        <legend>{t('permissions.scope')}</legend>
         {branches.map((b) => (
           <label key={b.id} className="check">
             <input type="checkbox" disabled={all} checked={picked.includes(b.id)}
@@ -220,16 +223,17 @@ function AssignRole({ roles, branches, onAssign }: { roles: Role[]; branches: Br
         {/* Company-wide is a separate, explicit choice: it also covers branches opened later. */}
         <label className="check strong">
           <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
-          كل الفروع (تشمل الفروع المستقبلية)
+          {t('permissions.allBranchesCheckbox')}
         </label>
       </fieldset>
-      <button className="primary" disabled={!roleId || (!all && picked.length === 0)}>تعيين</button>
+      <button className="primary" disabled={!roleId || (!all && picked.length === 0)}>{t('permissions.assign')}</button>
     </form>
   );
 }
 
 function Simulator({ access }: { access: Access }) {
-  const options = access.matrix.flatMap((r) => r.actions.map((a) => ({ key: `${r.resource}.${a.action}`, scope: r.scope, label: `${r.label.ar} — ${a.label.ar}` })));
+  const { t, locale } = useI18n();
+  const options = access.matrix.flatMap((r) => r.actions.map((a) => ({ key: `${r.resource}.${a.action}`, scope: r.scope, label: `${pickLabel(r.label, locale)} — ${pickLabel(a.label, locale)}` })));
   const [capability, setCapability] = useState(options[0]?.key ?? '');
   const [branchId, setBranchId] = useState(access.branches[0]?.id ?? '');
   const [result, setResult] = useState<string | null>(null);
@@ -245,7 +249,7 @@ function Simulator({ access }: { access: Access }) {
         action,
         branchId: scope === 'branch' ? branchId : null,
       });
-      setResult(`${r.allow ? '✓ نعم' : '✗ لا'} — ${why(r)}`);
+      setResult(`${r.allow ? t('permissions.simulator.yes') : t('permissions.simulator.no')} — ${why(t, r)}`);
     } catch (err) {
       setResult(describeError(err));
     }
@@ -253,22 +257,22 @@ function Simulator({ access }: { access: Access }) {
 
   return (
     <form className="card row" onSubmit={run}>
-      <h3 className="grow-none">جرّب الصلاحيات</h3>
+      <h3 className="grow-none">{t('permissions.simulator.title')}</h3>
       <label>
-        هل يستطيع
+        {t('permissions.simulator.can')}
         <select value={capability} onChange={(e) => setCapability(e.target.value)}>
           {options.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
         </select>
       </label>
       {scope === 'branch' && (
         <label>
-          في
+          {t('permissions.simulator.in')}
           <select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
             {access.branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </label>
       )}
-      <button>تحقق</button>
+      <button>{t('permissions.simulator.check')}</button>
       {result && <output className="grow">{result}</output>}
     </form>
   );

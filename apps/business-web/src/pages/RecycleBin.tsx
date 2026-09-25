@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, describeError, get, runCommand, type Me } from '../api';
+import { useI18n } from '../i18n';
 import { ReasonDialog } from '../components/ReasonDialog';
 import { formatDate } from './OrderFiles';
 
@@ -15,14 +16,14 @@ interface Deleted {
   restorable: boolean;
 }
 
-const kindLabel = { orders: 'طلب', files: 'مرفق' } as const;
-
 /** Everything the viewer may restore, newest first. Items only reach here by a reasoned delete. */
 export function RecycleBin({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () => void }) {
+  const { t, locale } = useI18n();
+  const kindLabel = { orders: t('recycleBin.kind.orders'), files: t('recycleBin.kind.files') } as const;
   const [items, setItems] = useState<Deleted[] | null>(null);
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [restoring, setRestoring] = useState<Deleted | null>(null);
-  const branchName = (id: string) => me.branches.find((b) => b.id === id)?.name ?? '—';
+  const branchName = (id: string) => me.branches.find((b) => b.id === id)?.name ?? t('common.dash');
 
   const load = useCallback(() => {
     get<{ items: Deleted[] }>('/recycle-bin').then((r) => setItems(r.items)).catch((e) => setMessage({ kind: 'error', text: describeError(e) }));
@@ -34,7 +35,7 @@ export function RecycleBin({ me, onPolicyChanged }: { me: Me; onPolicyChanged: (
     try {
       if (item.resource === 'orders') await runCommand(me, 'orders.restore', { orderId: item.id, expectedVersion: item.version, reason });
       else await runCommand(me, 'files.restore', { fileId: item.id, reason });
-      setMessage({ kind: 'ok', text: `تم استرجاع «${item.name}» إلى مكانه.` });
+      setMessage({ kind: 'ok', text: t('recycleBin.restored', { name: item.name }) });
       load();
     } catch (e) {
       setMessage({ kind: 'error', text: describeError(e) });
@@ -44,24 +45,24 @@ export function RecycleBin({ me, onPolicyChanged }: { me: Me; onPolicyChanged: (
 
   return (
     <section>
-      <h1>سلة المحذوفات</h1>
-      <p className="muted small">المحذوف هنا لم يُمسح نهائيًا؛ يمكن استرجاعه بنفس بياناته وسجله.</p>
+      <h1>{t('recycleBin.title')}</h1>
+      <p className="muted small">{t('recycleBin.note')}</p>
       {message && <p className={message.kind === 'error' ? 'error' : 'ok'} role="status">{message.text}</p>}
       <div className="card scroll">
         {items === null ? (
-          <p className="muted">جارٍ التحميل…</p>
+          <p className="muted">{t('common.loading')}</p>
         ) : items.length === 0 ? (
-          <p className="muted">السلة فارغة، أو لا توجد عناصر تملك صلاحية استرجاعها.</p>
+          <p className="muted">{t('recycleBin.empty')}</p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>النوع</th>
-                <th>العنصر</th>
-                <th>الفرع</th>
-                <th>حذفه</th>
-                <th>متى</th>
-                <th>السبب</th>
+                <th>{t('recycleBin.table.type')}</th>
+                <th>{t('recycleBin.table.item')}</th>
+                <th>{t('recycleBin.table.branch')}</th>
+                <th>{t('recycleBin.table.deletedBy')}</th>
+                <th>{t('recycleBin.table.when')}</th>
+                <th>{t('recycleBin.table.reason')}</th>
                 <th />
               </tr>
             </thead>
@@ -72,13 +73,13 @@ export function RecycleBin({ me, onPolicyChanged }: { me: Me; onPolicyChanged: (
                   <td>{i.name}</td>
                   <td>{branchName(i.branchId)}</td>
                   <td>{i.deletedBy}</td>
-                  <td className="small">{formatDate(i.deletedAt)}</td>
-                  <td className="small">{i.reason ?? '—'}</td>
+                  <td className="small">{formatDate(i.deletedAt, locale)}</td>
+                  <td className="small">{i.reason ?? t('common.dash')}</td>
                   <td>
                     {i.restorable ? (
-                      <button onClick={() => setRestoring(i)}>استرجاع</button>
+                      <button onClick={() => setRestoring(i)}>{t('recycleBin.restore')}</button>
                     ) : (
-                      <span className="muted small">استرجع الطلب أولًا</span>
+                      <span className="muted small">{t('recycleBin.restoreParentFirst')}</span>
                     )}
                   </td>
                 </tr>
@@ -88,7 +89,7 @@ export function RecycleBin({ me, onPolicyChanged }: { me: Me; onPolicyChanged: (
         )}
       </div>
       {restoring && (
-        <ReasonDialog title={`استرجاع «${restoring.name}»`} confirmLabel="استرجاع" onConfirm={(r) => restore(restoring, r)} onCancel={() => setRestoring(null)} />
+        <ReasonDialog title={t('recycleBin.restoreDialog.title', { name: restoring.name })} confirmLabel={t('recycleBin.restoreDialog.confirm')} onConfirm={(r) => restore(restoring, r)} onCancel={() => setRestoring(null)} />
       )}
     </section>
   );

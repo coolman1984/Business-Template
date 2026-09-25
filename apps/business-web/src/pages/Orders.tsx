@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ApiError, can, describeError, get, runCommand, type Me } from '../api';
+import { useI18n } from '../i18n';
 import { ReasonDialog } from '../components/ReasonDialog';
 import { OrderFiles } from './OrderFiles';
 
@@ -12,9 +13,9 @@ interface Order {
   version: number;
 }
 
-const statusLabel = { draft: 'مسودة', submitted: 'معتمد', cancelled: 'ملغى' } as const;
-
 export function Orders({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () => void }) {
+  const { t } = useI18n();
+  const statusLabel = { draft: t('orders.status.draft'), submitted: t('orders.status.submitted'), cancelled: t('orders.status.cancelled') } as const;
   const [orders, setOrders] = useState<Order[]>([]);
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const createBranches = me.branches.filter((b) => can(me, 'orders', 'create', b.id));
@@ -22,7 +23,7 @@ export function Orders({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =>
   const [customer, setCustomer] = useState('');
   const [openFiles, setOpenFiles] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Order | null>(null);
-  const branchName = (id: string) => me.branches.find((b) => b.id === id)?.name ?? '—';
+  const branchName = (id: string) => me.branches.find((b) => b.id === id)?.name ?? t('common.dash');
 
   const load = useCallback(() => {
     get<{ orders: Order[] }>('/orders').then((r) => setOrders(r.orders)).catch((e) => setMessage({ kind: 'error', text: describeError(e) }));
@@ -38,7 +39,7 @@ export function Orders({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =>
     e.preventDefault();
     try {
       const { result } = await runCommand<Order>(me, 'orders.create', { branchId, customerName: customer });
-      setMessage({ kind: 'ok', text: `تم إنشاء الطلب ${result.orderNumber}` });
+      setMessage({ kind: 'ok', text: t('orders.created', { number: result.orderNumber }) });
       setCustomer('');
       load();
     } catch (err) {
@@ -49,7 +50,7 @@ export function Orders({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =>
   const submit = async (o: Order) => {
     try {
       await runCommand(me, 'orders.submit', { orderId: o.id, expectedVersion: o.version });
-      setMessage({ kind: 'ok', text: `تم اعتماد الطلب ${o.orderNumber}` });
+      setMessage({ kind: 'ok', text: t('orders.approved', { number: o.orderNumber }) });
       load();
     } catch (err) {
       fail(err);
@@ -60,7 +61,7 @@ export function Orders({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =>
     setDeleting(null);
     try {
       await runCommand(me, 'orders.delete', { orderId: o.id, expectedVersion: o.version, reason });
-      setMessage({ kind: 'ok', text: `نُقل الطلب ${o.orderNumber} إلى سلة المحذوفات، ويمكن استرجاعه من هناك.` });
+      setMessage({ kind: 'ok', text: t('orders.deleted', { number: o.orderNumber }) });
       if (openFiles === o.id) setOpenFiles(null);
       load();
     } catch (err) {
@@ -70,12 +71,12 @@ export function Orders({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =>
 
   return (
     <section>
-      <h1>الطلبات</h1>
+      <h1>{t('orders.title')}</h1>
       {message && <p className={message.kind === 'error' ? 'error' : 'ok'} role="status">{message.text}</p>}
       {createBranches.length > 0 && (
         <form className="card row" onSubmit={create}>
           <label>
-            الفرع
+            {t('orders.branch')}
             <select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
               {createBranches.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
@@ -83,23 +84,23 @@ export function Orders({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =>
             </select>
           </label>
           <label className="grow">
-            اسم العميل
+            {t('orders.customerName')}
             <input value={customer} onChange={(e) => setCustomer(e.target.value)} required maxLength={200} />
           </label>
-          <button className="primary">إنشاء طلب</button>
+          <button className="primary">{t('orders.create')}</button>
         </form>
       )}
       <div className="card scroll">
         {orders.length === 0 ? (
-          <p className="muted">لا توجد طلبات تستطيع مشاهدتها.</p>
+          <p className="muted">{t('orders.empty')}</p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>الرقم</th>
-                <th>الفرع</th>
-                <th>العميل</th>
-                <th>الحالة</th>
+                <th>{t('orders.table.number')}</th>
+                <th>{t('orders.table.branch')}</th>
+                <th>{t('orders.table.customer')}</th>
+                <th>{t('orders.table.status')}</th>
                 <th />
               </tr>
             </thead>
@@ -114,15 +115,15 @@ export function Orders({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =>
                   <td>
                     <div className="actions">
                     {o.status === 'draft' && can(me, 'orders', 'submit', o.branchId) && (
-                      <button onClick={() => submit(o)}>اعتماد</button>
+                      <button onClick={() => submit(o)}>{t('orders.approve')}</button>
                     )}
                     {can(me, 'attachments', 'view', o.branchId) && (
                       <button className="link" aria-expanded={openFiles === o.id} onClick={() => setOpenFiles(openFiles === o.id ? null : o.id)}>
-                        المرفقات
+                        {t('orders.attachments')}
                       </button>
                     )}
                     {o.status === 'draft' && can(me, 'orders', 'delete', o.branchId) && (
-                      <button className="danger" onClick={() => setDeleting(o)}>حذف</button>
+                      <button className="danger" onClick={() => setDeleting(o)}>{t('orders.delete')}</button>
                     )}
                   </div>
                   </td>
@@ -141,7 +142,7 @@ export function Orders({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =>
         )}
       </div>
       {deleting && (
-        <ReasonDialog title={`نقل الطلب ${deleting.orderNumber} إلى سلة المحذوفات`} confirmLabel="نقل للسلة" danger onConfirm={(r) => remove(deleting, r)} onCancel={() => setDeleting(null)} />
+        <ReasonDialog title={t('orders.deleteDialog.title', { number: deleting.orderNumber })} confirmLabel={t('orders.deleteDialog.confirm')} danger onConfirm={(r) => remove(deleting, r)} onCancel={() => setDeleting(null)} />
       )}
     </section>
   );

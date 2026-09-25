@@ -1,5 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, can, get, post, type Me } from './api';
+import { useI18n } from './i18n';
+import { useTheme } from './theme/ThemeProvider';
+import {
+  BuildingIcon,
+  ClipboardIcon,
+  ListChecksIcon,
+  LogOutIcon,
+  MenuIcon,
+  MoonIcon,
+  PackageIcon,
+  ShieldIcon,
+  SunIcon,
+  TrashIcon,
+  WrenchIcon,
+} from './design/icons';
 import { ChooseCompany } from './pages/ChooseCompany';
 import { Login } from './pages/Login';
 import { Orders } from './pages/Orders';
@@ -10,10 +25,14 @@ import { Stock } from './pages/inventory/Stock';
 import { Tickets } from './pages/service/Tickets';
 
 type Stage = { kind: 'loading' } | { kind: 'signed-out' } | { kind: 'choose' } | { kind: 'ready'; me: Me };
+type PageKey = 'service' | 'orders' | 'stock' | 'recycle' | 'jobs' | 'permissions';
 
 export function App() {
+  const { t, locale, toggleLocale } = useI18n();
+  const { theme, toggleTheme } = useTheme();
   const [stage, setStage] = useState<Stage>({ kind: 'loading' });
-  const [page, setPage] = useState<'service' | 'orders' | 'stock' | 'recycle' | 'jobs' | 'permissions' | null>(null);
+  const [page, setPage] = useState<PageKey | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -33,58 +52,96 @@ export function App() {
     setStage({ kind: 'signed-out' });
   };
 
-  if (stage.kind === 'loading') return <main className="center muted">جارٍ التحميل…</main>;
+  if (stage.kind === 'loading') return <main className="center muted">{t('common.loading')}</main>;
   if (stage.kind === 'signed-out') return <Login onSignedIn={refresh} />;
   if (stage.kind === 'choose') return <ChooseCompany onChosen={refresh} onSignOut={signOut} />;
 
   const { me } = stage;
   const canSeePermissions = can(me, 'permissions', 'view');
   const canSeeRecycle = can(me, 'orders', 'restore') || can(me, 'attachments', 'restore');
-  const tabs = [
-    { key: 'service', label: 'طلبات الصيانة', show: can(me, 'service_tickets', 'view') },
-    { key: 'orders', label: 'الطلبات', show: can(me, 'orders', 'view') },
-    { key: 'stock', label: 'المخزون', show: can(me, 'stock', 'view') || can(me, 'inventory_setup', 'manage') },
-    { key: 'recycle', label: 'سلة المحذوفات', show: canSeeRecycle },
-    { key: 'jobs', label: 'المهام', show: true },
-    { key: 'permissions', label: 'الصلاحيات', show: canSeePermissions },
-  ] as const;
+  const tabs: { key: PageKey; label: string; icon: typeof WrenchIcon; show: boolean }[] = [
+    { key: 'service', label: t('nav.service'), icon: WrenchIcon, show: can(me, 'service_tickets', 'view') },
+    { key: 'orders', label: t('nav.orders'), icon: ClipboardIcon, show: can(me, 'orders', 'view') },
+    { key: 'stock', label: t('nav.stock'), icon: PackageIcon, show: can(me, 'stock', 'view') || can(me, 'inventory_setup', 'manage') },
+    { key: 'recycle', label: t('nav.recycle'), icon: TrashIcon, show: canSeeRecycle },
+    { key: 'jobs', label: t('nav.jobs'), icon: ListChecksIcon, show: true },
+    { key: 'permissions', label: t('nav.permissions'), icon: ShieldIcon, show: canSeePermissions },
+  ];
   // Each company sees the screens of its own recipe; the first one the person may use opens by default.
-  const current = tabs.find((t) => t.key === page && t.show)?.key ?? tabs.find((t) => t.show)!.key;
+  const current = tabs.find((tb) => tb.key === page && tb.show)?.key ?? tabs.find((tb) => tb.show)!.key;
+  const select = (key: PageKey) => {
+    setPage(key);
+    setMobileNavOpen(false);
+  };
+
   return (
     <div className="shell">
-      <header className="topbar">
-        <div className="brand">
-          <span className="logo" aria-hidden>▦</span>
-          <strong>{me.tenant.name}</strong>
+      <div className={`sidebar-scrim ${mobileNavOpen ? 'open' : ''}`} onClick={() => setMobileNavOpen(false)} />
+      <aside className={`sidebar ${mobileNavOpen ? 'mobile-open' : ''}`}>
+        <div className="sidebar-brand">
+          <span className="mark" aria-hidden>BSF</span>
+          <span className="name">{me.tenant.name}</span>
         </div>
-        <nav>
-          {tabs.filter((t) => t.show).map((t) => (
-            <button key={t.key} className={current === t.key ? 'tab active' : 'tab'} onClick={() => setPage(t.key)}>
-              {t.label}
-            </button>
-          ))}
+        <nav className="sidebar-nav" aria-label={t('shell.appName')}>
+          {tabs.filter((tb) => tb.show).map((tb) => {
+            const Icon = tb.icon;
+            return (
+              <button
+                key={tb.key}
+                className={current === tb.key ? 'nav-item active' : 'nav-item'}
+                aria-current={current === tb.key ? 'page' : undefined}
+                onClick={() => select(tb.key)}
+              >
+                <Icon size={16} />
+                <span>{tb.label}</span>
+              </button>
+            );
+          })}
         </nav>
-        <div className="who">
-          <span>{me.membership.displayName}</span>
-          <button className="link" onClick={() => setStage({ kind: 'choose' })}>تغيير الشركة</button>
-          <button className="link" onClick={signOut}>خروج</button>
-        </div>
-      </header>
-      <main className="content">
-        {current === 'permissions' ? (
-          <Permissions me={me} onPolicyChanged={refresh} />
-        ) : current === 'service' ? (
-          <Tickets me={me} onPolicyChanged={refresh} />
-        ) : current === 'stock' ? (
-          <Stock me={me} onPolicyChanged={refresh} />
-        ) : current === 'recycle' ? (
-          <RecycleBin me={me} onPolicyChanged={refresh} />
-        ) : current === 'jobs' ? (
-          <Jobs me={me} onPolicyChanged={refresh} />
-        ) : (
-          <Orders me={me} onPolicyChanged={refresh} />
-        )}
-      </main>
+      </aside>
+
+      <div className="shell-main">
+        <header className="topbar">
+          <div className="topbar-start">
+            <button className="icon-button" aria-label={t('shell.toggleMenu')} onClick={() => setMobileNavOpen((v) => !v)}>
+              <MenuIcon size={18} />
+            </button>
+          </div>
+          <div className="topbar-end">
+            <button className="icon-button" aria-label={t('shell.toggleTheme')} onClick={toggleTheme}>
+              {theme === 'dark' ? <SunIcon size={17} /> : <MoonIcon size={17} />}
+            </button>
+            <button className="icon-button" aria-label={locale === 'ar' ? 'English' : 'العربية'} onClick={toggleLocale} title={locale === 'ar' ? 'English' : 'العربية'}>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>{locale === 'ar' ? 'EN' : 'AR'}</span>
+            </button>
+            <span className="who">
+              <BuildingIcon size={14} />
+              <span className="name">{me.membership.displayName}</span>
+            </span>
+            <button className="icon-button" aria-label={t('shell.changeCompany')} title={t('shell.changeCompany')} onClick={() => setStage({ kind: 'choose' })}>
+              <BuildingIcon size={16} />
+            </button>
+            <button className="icon-button" aria-label={t('shell.signOut')} title={t('shell.signOut')} onClick={signOut}>
+              <LogOutIcon size={16} />
+            </button>
+          </div>
+        </header>
+        <main className="content">
+          {current === 'permissions' ? (
+            <Permissions me={me} onPolicyChanged={refresh} />
+          ) : current === 'service' ? (
+            <Tickets me={me} onPolicyChanged={refresh} />
+          ) : current === 'stock' ? (
+            <Stock me={me} onPolicyChanged={refresh} />
+          ) : current === 'recycle' ? (
+            <RecycleBin me={me} onPolicyChanged={refresh} />
+          ) : current === 'jobs' ? (
+            <Jobs me={me} onPolicyChanged={refresh} />
+          ) : (
+            <Orders me={me} onPolicyChanged={refresh} />
+          )}
+        </main>
+      </div>
     </div>
   );
 }

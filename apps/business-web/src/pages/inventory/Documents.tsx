@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ApiError, can, describeError, get, runCommand, type Me } from '../../api';
+import { useI18n, type TFunc, type Locale } from '../../i18n';
 import { ReasonDialog } from '../../components/ReasonDialog';
 import { formatDate } from '../OrderFiles';
 import { QUANTITY_RE, fmtQty, latinDigits, statusClass, statusLabel, typeLabel, type Item, type StockDocument, type Warehouse } from './types';
@@ -13,15 +14,16 @@ interface LineDraft {
 const newLine = (): LineDraft => ({ key: crypto.randomUUID(), itemId: '', quantity: '' });
 
 /** Explains a refused posting item by item, instead of a generic error. */
-function explain(e: unknown): string {
+function explain(e: unknown, t: TFunc, locale: Locale): string {
   if (e instanceof ApiError && e.code === 'insufficient_stock') {
     const list = (e.details.shortages as { name: string; onHand: string; required: string }[]) ?? [];
-    return `الرصيد لا يكفي، ولم يُرحّل شيء: ${list.map((s) => `${s.name} (المتاح ${fmtQty(s.onHand)} والمطلوب ${fmtQty(s.required)})`).join('، ')}`;
+    return t('documents.insufficientStock', { list: list.map((s) => t('documents.shortageItem', { name: s.name, onHand: fmtQty(s.onHand, locale), required: fmtQty(s.required, locale) })).join(locale === 'ar' ? '، ' : ', ') });
   }
   return describeError(e);
 }
 
 export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; items: Item[]; warehouses: Warehouse[]; onPolicyChanged: () => void }) {
+  const { t, locale } = useI18n();
   const [docs, setDocs] = useState<StockDocument[] | null>(null);
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; 
   const [reference, setReference] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([newLine()]);
   const activeItems = items.filter((i) => i.active);
-  const whName = (id: string) => warehouses.find((w) => w.id === id)?.name ?? '—';
+  const whName = (id: string) => warehouses.find((w) => w.id === id)?.name ?? t('common.dash');
 
   const load = useCallback(() => {
     get<{ documents: StockDocument[] }>('/inventory/documents').then((r) => setDocs(r.documents)).catch((e) => setMessage({ kind: 'error', text: describeError(e) }));
@@ -51,7 +53,7 @@ export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; 
   }, [types, type]);
 
   const fail = (e: unknown) => {
-    setMessage({ kind: 'error', text: explain(e) });
+    setMessage({ kind: 'error', text: explain(e, t, locale) });
     if (e instanceof ApiError && e.code === 'policy_changed') onPolicyChanged();
   };
 
@@ -67,7 +69,7 @@ export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; 
         reference: reference.trim() || null,
         lines: lines.map((l) => ({ itemId: l.itemId, quantity: l.quantity })),
       });
-      setMessage({ kind: 'ok', text: `حُفظت مسودة ${typeLabel[type]}. الرصيد لا يتغير إلا بعد الترحيل.` });
+      setMessage({ kind: 'ok', text: t('documents.created', { type: typeLabel(t, type) }) });
       setLines([newLine()]);
       setReference('');
       load();
@@ -79,7 +81,7 @@ export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; 
   const post = async (d: StockDocument) => {
     try {
       const { result } = await runCommand<{ documentNumber: string }>(me, 'stock.document_post', { documentId: d.id, expectedVersion: d.version });
-      setMessage({ kind: 'ok', text: `رُحّل المستند برقم ${result.documentNumber} وتحرك الرصيد.` });
+      setMessage({ kind: 'ok', text: t('documents.posted', { number: result.documentNumber }) });
       load();
     } catch (err) {
       fail(err);
@@ -93,10 +95,10 @@ export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; 
     try {
       if (kind === 'cancel') {
         await runCommand(me, 'stock.document_cancel', { documentId: doc.id, expectedVersion: doc.version, reason });
-        setMessage({ kind: 'ok', text: 'أُلغيت المسودة.' });
+        setMessage({ kind: 'ok', text: t('documents.cancelled') });
       } else {
         const { result } = await runCommand<{ documentNumber: string }>(me, 'stock.document_reverse', { documentId: doc.id, reason });
-        setMessage({ kind: 'ok', text: `رُحّل مستند العكس ${result.documentNumber}، والمستند الأصلي باقٍ كما هو في السجل.` });
+        setMessage({ kind: 'ok', text: t('documents.reversed', { number: result.documentNumber }) });
       }
       load();
     } catch (err) {
@@ -112,10 +114,10 @@ export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; 
       {message && <p className={message.kind === 'error' ? 'error' : 'ok'} role="status">{message.text}</p>}
       {usable.length > 0 && activeItems.length > 0 && (
         <form className="card doc-form" onSubmit={create}>
-          <h2>مستند جديد</h2>
+          <h2>{t('documents.new')}</h2>
           <div className="row">
             <label>
-              المخزن
+              {t('documents.warehouse')}
               <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
                 {usable.map((w) => (
                   <option key={w.id} value={w.id}>{w.name}</option>
@@ -123,15 +125,15 @@ export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; 
               </select>
             </label>
             <label>
-              النوع
+              {t('documents.type')}
               <select value={type} onChange={(e) => setType(e.target.value as NewType)}>
-                {types.map((t) => (
-                  <option key={t} value={t}>{typeLabel[t]}</option>
+                {types.map((ty) => (
+                  <option key={ty} value={ty}>{typeLabel(t, ty)}</option>
                 ))}
               </select>
             </label>
             <label className="grow">
-              المرجع (مورد، عميل، رقم فاتورة…)
+              {t('documents.reference')}
               <input value={reference} onChange={(e) => setReference(e.target.value)} maxLength={200} />
             </label>
           </div>
@@ -139,8 +141,8 @@ export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; 
           <table className="lines">
             <thead>
               <tr>
-                <th>الصنف</th>
-                <th>الكمية</th>
+                <th>{t('documents.line.item')}</th>
+                <th>{t('documents.line.quantity')}</th>
                 <th />
               </tr>
             </thead>
@@ -150,8 +152,8 @@ export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; 
                 return (
                   <tr key={l.key}>
                     <td>
-                      <select value={l.itemId} onChange={(e) => setLine(l.key, { itemId: e.target.value })} required aria-label="الصنف">
-                        <option value="">اختر صنفًا…</option>
+                      <select value={l.itemId} onChange={(e) => setLine(l.key, { itemId: e.target.value })} required aria-label={t('documents.line.item')}>
+                        <option value="">{t('documents.line.choose')}</option>
                         {activeItems.map((i) => (
                           <option key={i.id} value={i.id}>{i.code} — {i.name}</option>
                         ))}
@@ -165,7 +167,7 @@ export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; 
                           value={l.quantity}
                           onChange={(e) => setLine(l.key, { quantity: latinDigits(e.target.value) })}
                           placeholder="0"
-                          aria-label="الكمية"
+                          aria-label={t('documents.line.quantity')}
                           required
                         />
                         <span className="muted small">{unit ?? ''}</span>
@@ -173,7 +175,7 @@ export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; 
                     </td>
                     <td>
                       {lines.length > 1 && (
-                        <button type="button" className="link" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>حذف السطر</button>
+                        <button type="button" className="link" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>{t('documents.line.delete')}</button>
                       )}
                     </td>
                   </tr>
@@ -182,39 +184,39 @@ export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; 
             </tbody>
           </table>
           </div>
-          {repeated && <p className="error small">كل صنف يظهر مرة واحدة في المستند؛ اجمع الكميات في سطر واحد.</p>}
+          {repeated && <p className="error small">{t('documents.repeatedItem')}</p>}
           <div className="row">
-            <button type="button" onClick={() => setLines((ls) => [...ls, newLine()])}>+ سطر</button>
-            <button className="primary" disabled={!linesValid || repeated}>حفظ كمسودة</button>
-            <span className="muted small">المسودة لا تغير الرصيد؛ الترحيل يحتاج صلاحية اعتماد.</span>
+            <button type="button" onClick={() => setLines((ls) => [...ls, newLine()])}>{t('documents.addLine')}</button>
+            <button className="primary" disabled={!linesValid || repeated}>{t('documents.saveDraft')}</button>
+            <span className="muted small">{t('documents.draftNote')}</span>
           </div>
         </form>
       )}
 
       <div className="row spread">
-        <div className="segmented" role="group" aria-label="تصفية">
+        <div className="segmented" role="group" aria-label={t('documents.filterLabel')}>
           {(['all', 'draft', 'posted'] as const).map((f) => (
             <button key={f} className={filter === f ? 'tab active' : 'tab'} onClick={() => setFilter(f)}>
-              {f === 'all' ? 'الكل' : statusLabel[f]}
+              {f === 'all' ? t('documents.filter.all') : statusLabel(t, f)}
             </button>
           ))}
         </div>
       </div>
       <div className="card scroll">
         {docs === null ? (
-          <p className="muted">جارٍ التحميل…</p>
+          <p className="muted">{t('common.loading')}</p>
         ) : shown.length === 0 ? (
-          <p className="muted">لا توجد مستندات.</p>
+          <p className="muted">{t('documents.empty')}</p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>الرقم</th>
-                <th>النوع</th>
-                <th>المخزن</th>
-                <th>المرجع</th>
-                <th>الحالة</th>
-                <th>أعده</th>
+                <th>{t('documents.table.number')}</th>
+                <th>{t('documents.table.type')}</th>
+                <th>{t('documents.table.warehouse')}</th>
+                <th>{t('documents.table.reference')}</th>
+                <th>{t('documents.table.status')}</th>
+                <th>{t('documents.table.preparedBy')}</th>
                 <th />
               </tr>
             </thead>
@@ -240,8 +242,8 @@ export function Documents({ me, items, warehouses, onPolicyChanged }: { me: Me; 
       </div>
       {acting && (
         <ReasonDialog
-          title={acting.kind === 'cancel' ? 'إلغاء المسودة' : `عكس المستند ${acting.doc.number}`}
-          confirmLabel={acting.kind === 'cancel' ? 'إلغاء المسودة' : 'ترحيل مستند عكس'}
+          title={acting.kind === 'cancel' ? t('documents.cancelDialog.title') : t('documents.reverseDialog.title', { number: acting.doc.number ?? '' })}
+          confirmLabel={acting.kind === 'cancel' ? t('documents.cancelDialog.confirm') : t('documents.reverseDialog.confirm')}
           danger
           onConfirm={decide}
           onCancel={() => setActing(null)}
@@ -263,27 +265,28 @@ function DocRow(props: {
   onCancel: () => void;
   onReverse: () => void;
 }) {
+  const { t, locale } = useI18n();
   const { doc: d } = props;
   return (
     <>
       <tr>
-        <td dir="ltr" className="mono">{d.number ?? '—'}</td>
+        <td dir="ltr" className="mono">{d.number ?? t('common.dash')}</td>
         <td>
-          <span className={`dir ${d.direction === 1 ? 'in' : 'out'}`}>{d.direction === 1 ? '↓' : '↑'}</span> {typeLabel[d.type]}
+          <span className={`dir ${d.direction === 1 ? 'in' : 'out'}`}>{d.direction === 1 ? '↓' : '↑'}</span> {typeLabel(t, d.type)}
         </td>
         <td>{props.warehouse}</td>
-        <td className="small">{d.reference ?? '—'}</td>
+        <td className="small">{d.reference ?? t('common.dash')}</td>
         <td>
-          <span className={`badge ${statusClass[d.status]}`}>{statusLabel[d.status]}</span>
-          {d.reversedBy && <span className="badge warn">معكوس بـ {d.reversedBy}</span>}
+          <span className={`badge ${statusClass[d.status]}`}>{statusLabel(t, d.status)}</span>
+          {d.reversedBy && <span className="badge warn">{t('documents.reversedBy', { number: d.reversedBy })}</span>}
         </td>
         <td className="small">{d.createdBy}</td>
         <td>
           <div className="actions">
-            <button className="link" aria-expanded={props.open} onClick={props.onToggle}>{props.open ? 'إخفاء' : `الأصناف (${d.lines.length})`}</button>
-            {props.canPost && <button className="primary" onClick={props.onPost}>ترحيل</button>}
-            {props.canCancel && <button className="danger" onClick={props.onCancel}>إلغاء</button>}
-            {props.canReverse && <button onClick={props.onReverse}>عكس</button>}
+            <button className="link" aria-expanded={props.open} onClick={props.onToggle}>{props.open ? t('documents.hideItems') : t('documents.itemsCount', { count: d.lines.length })}</button>
+            {props.canPost && <button className="primary" onClick={props.onPost}>{t('documents.post')}</button>}
+            {props.canCancel && <button className="danger" onClick={props.onCancel}>{t('documents.cancel')}</button>}
+            {props.canReverse && <button onClick={props.onReverse}>{t('documents.reverse')}</button>}
           </div>
         </td>
       </tr>
@@ -296,16 +299,16 @@ function DocRow(props: {
                   <tr key={l.itemId}>
                     <td dir="ltr" className="mono">{l.code}</td>
                     <td>{l.name}</td>
-                    <td>{fmtQty(l.quantity)} {l.unit}</td>
+                    <td>{fmtQty(l.quantity, locale)} {l.unit}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <p className="muted small">
-              أُعد {formatDate(d.createdAt)}
-              {d.postedAt && ` · رحّله ${d.postedBy} ${formatDate(d.postedAt)}`}
-              {d.cancelReason && ` · سبب الإلغاء: ${d.cancelReason}`}
-              {d.type === 'reversal' && d.notes && ` · سبب العكس: ${d.notes}`}
+              {t('documents.prepared', { date: formatDate(d.createdAt, locale) })}
+              {d.postedAt && ` · ${t('documents.postedBy', { who: d.postedBy ?? '', date: formatDate(d.postedAt, locale) })}`}
+              {d.cancelReason && ` · ${t('documents.cancelReason', { reason: d.cancelReason })}`}
+              {d.type === 'reversal' && d.notes && ` · ${t('documents.reverseReason', { reason: d.notes })}`}
             </p>
           </td>
         </tr>
