@@ -1,0 +1,7 @@
+{
+  "name": "@factory/engine-orders",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@factory/platform-core": "workspace:*" }
+}

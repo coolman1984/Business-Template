@@ -1,0 +1,9 @@
+{
+  "name": "@factory/api",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@factory/platform-core": "workspace:*",
+    "@factory/engine-orders": "workspace:*"
+  }
+}

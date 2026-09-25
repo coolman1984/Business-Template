@@ -1,0 +1,39 @@
+# On-premise install: one machine inside the company runs the database and the server.
+# Secrets come from a local .env file (copy .env.example and change every password).
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      retries: 20
+
+  # One-shot: create roles and database, then apply migrations as the owner role.
+  migrate:
+    build: .
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_ADMIN_URL: postgres://postgres:${POSTGRES_SUPERUSER_PASSWORD}@db:5432/postgres
+      DATABASE_OWNER_URL: postgres://factory_owner:${OWNER_PASSWORD:?set OWNER_PASSWORD}@db:5432/factory
+      DATABASE_APP_URL: postgres://factory_app:${APP_PASSWORD:?set APP_PASSWORD}@db:5432/factory
+    command: ["sh", "-c", "pnpm db:bootstrap && pnpm db:migrate"]
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    # The API only ever gets the runtime role; it has no owner or superuser credentials.
+    environment:
+      DATABASE_APP_URL: postgres://factory_app:${APP_PASSWORD}@db:5432/factory
+    ports:
+      - "${LISTEN_ADDRESS:-127.0.0.1}:3000:3000"
+
+volumes:
+  db-data:
