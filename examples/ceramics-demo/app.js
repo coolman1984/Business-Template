@@ -4,7 +4,7 @@
 
   var DB = globalThis.CeramicData.generate();
   var PAGE_SIZE = 25;
-  var DONE_PHASES = ['A1', 'A2', 'A3', 'A4'];
+  var DONE_PHASES = ['A1', 'A2', 'A3', 'A4', 'A5'];
 
   // ================================================================ i18n
   var UI = {
@@ -38,10 +38,13 @@
       'c.test': 'الاختبار', 'c.value': 'القيمة', 'c.result': 'النتيجة', 'c.ref': 'المرجع',
       'c.lot': 'اللوط', 'c.grade': 'الفرز', 'c.shade': 'درجة اللون', 'c.m2': 'م²', 'c.available': 'المتاح',
       'c.warehouse': 'المخزن', 'c.onHand': 'الرصيد', 'c.dealer': 'التاجر', 'c.orderNumber': 'رقم الطلبية', 'c.revenue': 'القيمة', 'c.driver': 'السائق', 'c.pallets': 'باليتات', 'c.orders': 'طلبيات', 'c.loadNumber': 'رقم التحميلة',
+      'c.poNumber': 'رقم الطلب', 'c.item': 'الصنف', 'c.itemType': 'نوع الصنف', 'c.qty': 'الكمية', 'c.requested': 'تاريخ الطلب', 'c.asset': 'المعدة', 'c.kind': 'النوع', 'c.opened': 'الفتح', 'c.closed': 'الإغلاق',
+      'c.technician': 'الفني', 'c.description': 'الوصف', 'c.severity': 'الخطورة', 'c.reportedBy': 'المُبلِّغ',
       // statuses
       's.active': 'نشط', 's.new': 'جديد', 's.discontinued': 'متوقف', 's.running': 'شغال', 's.maintenance': 'في الصيانة', 's.standby': 'احتياطي', 's.onLeave': 'إجازة', 's.suspended': 'موقوف',
       's.creditHold': 'موقوف ائتمانيًا', 's.inactive': 'غير نشط', 's.belowMin': 'تحت الحد', 's.ok': 'كافي', 's.critical': 'حرجة', 's.pass': 'مطابق', 's.fail': 'غير مطابق',
-      's.confirmed': 'مؤكدة', 's.reserved': 'محجوزة', 's.dispatched': 'مشحونة', 's.delivered': 'تم التسليم',
+      's.confirmed': 'مؤكدة', 's.reserved': 'محجوزة', 's.dispatched': 'مشحونة', 's.delivered': 'تم التسليم', 's.open': 'مفتوح', 's.closed': 'مغلق',
+      's.requested': 'مطلوب', 's.ordered': 'تحت التوريد', 's.received': 'مستلم',
       'pm.hours': 'كل {n} ساعة تشغيل', 'pm.strokes': 'كل {n} كبسة', 'pm.calendar': 'كل {n} يوم',
       'lvl.manager': 'مدير', 'lvl.professional': 'أخصائي/مهندس', 'lvl.supervisor': 'مشرف', 'lvl.technician': 'فني', 'lvl.worker': 'عامل',
       'origin.local': 'محلي', 'origin.imported': 'مستورد', 'cash': 'نقدي', 'body': 'جسم', 'glaze': 'جليز', 'anyEquipment': 'كل المعدات (عام)',
@@ -105,6 +108,27 @@
       'p.sortingLots': 'الفرز والتعبئة', 'p.sortingLots.sub': 'ناتج الفرز بالفرز ودرجة اللون والمقاس، وما هو متاح منه للحجز.',
       'stock.lots': 'اللوطات المكوّنة للرصيد', 'sales.creditBlockedNote': 'الطلبية محجوزة لأن التاجر موقوف ائتمانيًا.', 'sales.linesTitle': 'بنود الطلبية', 'sales.recentOrders': 'آخر الطلبيات',
       'dispatch.ordersTitle': 'الطلبيات على التحميلة',
+      // A5 pages
+      'k.purchaseOrder': 'طلب شراء', 'k.workOrder': 'أمر شغل', 'k.safetyIncident': 'حادث سلامة', 'purch.buyer': 'المشتري',
+      'purch.sub': 'طلبات الشراء والأوامر للخامات وقطع الغيار تحت حد الطلب.', 'purch.kpi.requested': 'طلبات مفتوحة', 'purch.kpi.ordered': 'أوامر تحت التوريد',
+      'purch.kpi.received': 'أوامر مستلمة', 'purch.kpi.belowReorder': 'أصناف تحت حد الطلب', 'purch.logTitle': 'سجل طلبات وأوامر الشراء',
+      'maint.preventive': 'وقائية', 'maint.breakdown': 'عطل', 'maint.desc.burner': 'عطل شعلة فرن الخط الثاني', 'maint.desc.annual': 'الصيانة السنوية الكبرى',
+      'maint.sub': 'أوامر الشغل الوقائية والعطل، ومعدات متأخرة عن الصيانة.', 'maint.kpi.open': 'أوامر شغل مفتوحة', 'maint.kpi.mttr': 'متوسط وقت الإصلاح', 'maint.daysUnit': 'يوم',
+      'maint.kpi.overduePm': 'معدات متأخرة عن الصيانة', 'maint.kpi.breakdowns45': 'أعطال مغلقة (٤٥ يوم)', 'maint.byKindTitle': 'أوامر الشغل حسب النوع', 'maint.logTitle': 'سجل أوامر الشغل',
+      'energy.sub': 'استهلاك الغاز والكهرباء والمية، والغاز لكل م² مقابل الإنتاج.', 'energy.kpi.gasToday': 'غاز اليوم', 'energy.kpi.elecToday': 'كهرباء اليوم (ك.و.س)',
+      'energy.kpi.waterToday': 'مية اليوم', 'energy.kpi.gasPerM2': 'غاز لكل م² (٧ أيام)', 'energy.elecTrendTitle': 'الكهرباء اليومية — آخر ٤٥ يوم', 'energy.gasByLineTitle': 'الغاز حسب الخط (٧ أيام)',
+      'energy.atomizer': 'الأتومايزر', 'energy.kwhUnit': 'ك.و.س',
+      'people.sub': 'الحضور والانصراف والإضافي حسب القسم.', 'people.kpi.attendance': 'نسبة الحضور (اليوم)', 'people.kpi.onLeave': 'في إجازة',
+      'people.kpi.absent': 'غياب', 'people.kpi.overtime30': 'ساعات إضافي (٣٠ يوم)', 'people.byDeptTitle': 'نسبة الحضور حسب القسم', 'people.otTrendTitle': 'ساعات الإضافي اليومية — آخر ٣٠ يوم',
+      'costing.sub': 'أعمار ديون التجار المحسوبة من تواريخ التسليم وشروط الدفع.', 'costing.kpi.outstanding': 'إجمالي المديونية', 'costing.kpi.over90': 'متأخر فوق ٩٠ يوم',
+      'costing.kpi.dealersOver90': 'تجار متأخرين فوق ٩٠ يوم', 'costing.ageingTitle': 'أعمار الديون', 'costing.dealersTitle': 'المديونية حسب التاجر', 'costing.bucket': 'الفئة العمرية',
+      'costing.current': 'غير مستحق', 'costing.d30': '١–٣٠ يوم', 'costing.d60': '٣١–٦٠ يوم', 'costing.d90': 'فوق ٩٠ يوم',
+      'safety.near_miss': 'موقف وشيك', 'safety.minor': 'إصابة بسيطة', 'safety.lost_time': 'إصابة تعطيل عن العمل',
+      'safety.sub': 'الحوادث والملاحظات المفتوحة وأيام العمل بلا إصابة تعطيل.', 'safety.kpi.daysSinceLostTime': 'أيام بلا إصابة تعطيل', 'safety.kpi.open': 'ملاحظات مفتوحة',
+      'safety.kpi.total45': 'حوادث (٤٥ يوم)', 'safety.bySeverityTitle': 'الحوادث حسب الخطورة', 'safety.logTitle': 'سجل الحوادث',
+      'p.purchaseOrders': 'طلبات وأوامر الشراء', 'p.purchaseOrders.sub': 'طلبات الشراء والأوامر للخامات وقطع الغيار.',
+      'p.workOrders': 'أوامر الشغل', 'p.workOrders.sub': 'أوامر الصيانة الوقائية وأوامر إصلاح الأعطال.',
+      'p.safetyIncidents': 'حوادث السلامة', 'p.safetyIncidents.sub': 'حوادث السلامة والملاحظات بخطورتها وحالتها.',
     },
     en: {
       'brand.sub': 'Factory management system', 'demo.note': 'Demo — every name and number here is fictional and belongs to no real factory.', 'demo.tag': 'Demo',
@@ -134,9 +158,12 @@
       'c.test': 'Test', 'c.value': 'Value', 'c.result': 'Result', 'c.ref': 'Reference',
       'c.lot': 'Lot', 'c.grade': 'Grade', 'c.shade': 'Shade', 'c.m2': 'm²', 'c.available': 'Available',
       'c.warehouse': 'Warehouse', 'c.onHand': 'On hand', 'c.dealer': 'Dealer', 'c.orderNumber': 'Order number', 'c.revenue': 'Value', 'c.driver': 'Driver', 'c.pallets': 'Pallets', 'c.orders': 'Orders', 'c.loadNumber': 'Load number',
+      'c.poNumber': 'PO number', 'c.item': 'Item', 'c.itemType': 'Item type', 'c.qty': 'Quantity', 'c.requested': 'Requested', 'c.asset': 'Machine', 'c.kind': 'Kind', 'c.opened': 'Opened', 'c.closed': 'Closed',
+      'c.technician': 'Technician', 'c.description': 'Description', 'c.severity': 'Severity', 'c.reportedBy': 'Reported by',
       's.active': 'Active', 's.new': 'New', 's.discontinued': 'Discontinued', 's.running': 'Running', 's.maintenance': 'In maintenance', 's.standby': 'Standby', 's.onLeave': 'On leave', 's.suspended': 'Suspended',
       's.creditHold': 'Credit hold', 's.inactive': 'Inactive', 's.belowMin': 'Below minimum', 's.ok': 'Sufficient', 's.critical': 'Critical', 's.pass': 'Pass', 's.fail': 'Fail',
-      's.confirmed': 'Confirmed', 's.reserved': 'Reserved', 's.dispatched': 'Dispatched', 's.delivered': 'Delivered',
+      's.confirmed': 'Confirmed', 's.reserved': 'Reserved', 's.dispatched': 'Dispatched', 's.delivered': 'Delivered', 's.open': 'Open', 's.closed': 'Closed',
+      's.requested': 'Requested', 's.ordered': 'On order', 's.received': 'Received',
       'pm.hours': 'Every {n} running hours', 'pm.strokes': 'Every {n} strokes', 'pm.calendar': 'Every {n} days',
       'lvl.manager': 'Manager', 'lvl.professional': 'Professional', 'lvl.supervisor': 'Supervisor', 'lvl.technician': 'Technician', 'lvl.worker': 'Worker',
       'origin.local': 'Local', 'origin.imported': 'Imported', 'cash': 'Cash', 'body': 'Body', 'glaze': 'Glaze', 'anyEquipment': 'Any equipment (general)',
@@ -198,6 +225,27 @@
       'p.sortingLots': 'Sorting & packing', 'p.sortingLots.sub': 'Sorting output by grade, shade and caliber, and what is still available to reserve.',
       'stock.lots': 'Lots making up this position', 'sales.creditBlockedNote': 'This order is on hold because the dealer is on credit hold.', 'sales.linesTitle': 'Order lines', 'sales.recentOrders': 'Recent orders',
       'dispatch.ordersTitle': 'Orders on this load',
+      // A5 pages
+      'k.purchaseOrder': 'Purchase order', 'k.workOrder': 'Work order', 'k.safetyIncident': 'Safety incident', 'purch.buyer': 'Buyer',
+      'purch.sub': 'Purchase requests and orders for materials and spare parts below their reorder point.', 'purch.kpi.requested': 'Open requests', 'purch.kpi.ordered': 'On order',
+      'purch.kpi.received': 'Received', 'purch.kpi.belowReorder': 'Items below reorder point', 'purch.logTitle': 'Purchase order log',
+      'maint.preventive': 'Preventive', 'maint.breakdown': 'Breakdown', 'maint.desc.burner': 'Line 2 kiln burner fault', 'maint.desc.annual': 'Major annual overhaul',
+      'maint.sub': 'Preventive and breakdown work orders, and equipment overdue for service.', 'maint.kpi.open': 'Open work orders', 'maint.kpi.mttr': 'Mean time to repair', 'maint.daysUnit': 'days',
+      'maint.kpi.overduePm': 'Equipment overdue for PM', 'maint.kpi.breakdowns45': 'Closed breakdowns (45d)', 'maint.byKindTitle': 'Work orders by kind', 'maint.logTitle': 'Work order log',
+      'energy.sub': 'Gas, electricity and water use, and gas per m² against output.', 'energy.kpi.gasToday': 'Gas today', 'energy.kpi.elecToday': 'Electricity today (kWh)',
+      'energy.kpi.waterToday': 'Water today', 'energy.kpi.gasPerM2': 'Gas per m² (7d)', 'energy.elecTrendTitle': 'Daily electricity — last 45 days', 'energy.gasByLineTitle': 'Gas by line (7d)',
+      'energy.atomizer': 'Atomizer', 'energy.kwhUnit': 'kWh',
+      'people.sub': 'Attendance and overtime by department.', 'people.kpi.attendance': 'Attendance rate (today)', 'people.kpi.onLeave': 'On leave',
+      'people.kpi.absent': 'Absent', 'people.kpi.overtime30': 'Overtime hours (30d)', 'people.byDeptTitle': 'Attendance rate by department', 'people.otTrendTitle': 'Daily overtime hours — last 30 days',
+      'costing.sub': 'Dealer receivables ageing, computed from delivery dates and payment terms.', 'costing.kpi.outstanding': 'Total outstanding', 'costing.kpi.over90': 'Over 90 days',
+      'costing.kpi.dealersOver90': 'Dealers over 90 days', 'costing.ageingTitle': 'Receivables ageing', 'costing.dealersTitle': 'Balance by dealer', 'costing.bucket': 'Ageing bucket',
+      'costing.current': 'Not yet due', 'costing.d30': '1-30 days', 'costing.d60': '31-60 days', 'costing.d90': 'Over 90 days',
+      'safety.near_miss': 'Near miss', 'safety.minor': 'Minor injury', 'safety.lost_time': 'Lost-time injury',
+      'safety.sub': 'Incidents, open observations, and days worked without a lost-time injury.', 'safety.kpi.daysSinceLostTime': 'Days without lost-time injury', 'safety.kpi.open': 'Open observations',
+      'safety.kpi.total45': 'Incidents (45d)', 'safety.bySeverityTitle': 'Incidents by severity', 'safety.logTitle': 'Incident log',
+      'p.purchaseOrders': 'Purchase orders', 'p.purchaseOrders.sub': 'Purchase requests and orders for materials and spare parts.',
+      'p.workOrders': 'Work orders', 'p.workOrders.sub': 'Preventive maintenance and breakdown repair work orders.',
+      'p.safetyIncidents': 'Safety incidents', 'p.safetyIncidents.sub': 'Safety incidents and observations with severity and status.',
     },
   };
 
@@ -239,6 +287,7 @@
   function m2() { return state.locale === 'ar' ? 'م²' : 'm²'; }
   function m3() { return state.locale === 'ar' ? 'م³' : 'm³'; }
   function round2(n) { return Math.round(n * 100) / 100; }
+  function addDays(iso, n) { return new Date(Date.parse(iso + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10); }
   function money(n) { return num(n) + ' ' + t('egp'); }
   function date(iso) { return new Date(iso + 'T00:00:00Z').toLocaleDateString(state.locale === 'ar' ? 'ar-EG-u-nu-latn' : 'en-GB', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }); }
   function normalize(s) {
@@ -252,7 +301,7 @@
   var by = {};
   [
     'products', 'materials', 'suppliers', 'assets', 'spareParts', 'warehouses', 'dealers', 'employees', 'departments',
-    'shiftReports', 'sortingLots', 'salesOrders', 'dispatchLoads', 'purchaseOrders', 'workOrders', 'millBatches', 'atomizerRuns', 'glazeBatches', 'labTests', 'productionPlan',
+    'shiftReports', 'sortingLots', 'salesOrders', 'dispatchLoads', 'purchaseOrders', 'workOrders', 'millBatches', 'atomizerRuns', 'glazeBatches', 'labTests', 'productionPlan', 'safetyIncidents',
   ].forEach(function (k) {
     by[k] = {}; DB[k].forEach(function (x) { by[k][x.id] = x; });
   });
@@ -358,22 +407,22 @@
     { id: 'dispatch', group: 'commercial', icon: 'truck', name: b('التوزيع والشحن', 'Dispatch & shipping'),
       screens: [b('أوامر التحميل', 'Loading orders'), b('العربيات والسواقين', 'Trucks and drivers'), b('مسح باركود الباليتات', 'Pallet barcode scanning'), b('إذن الخروج من البوابة', 'Gate pass')],
       kpis: [b('عربيات في اليوم', 'Trucks a day'), b('زمن التحميل', 'Loading time'), b('التسليم في الميعاد', 'On-time delivery')], uses: ['dealers', 'warehouses'] },
-    { id: 'purchasing', group: 'commercial', phase: 'A5', icon: 'receipt', name: b('المشتريات والاستيراد', 'Purchasing & imports'),
+    { id: 'purchasing', group: 'commercial', icon: 'receipt', name: b('المشتريات والاستيراد', 'Purchasing & imports'),
       screens: [b('طلبات الشراء', 'Purchase requests'), b('مقارنة عروض الموردين', 'Supplier quote comparison'), b('أوامر الشراء', 'Purchase orders'), b('استلام موقوف على نتيجة المعمل', 'Receipt held for lab release'), b('متابعة الشحنات المستوردة', 'Import shipment tracking')],
       kpis: [b('مدة التوريد', 'Lead time'), b('توريد مرفوض من المعمل', 'Lab-rejected deliveries'), b('خامات تحت حد الطلب', 'Materials below reorder point')], uses: ['suppliers', 'materials', 'spareParts'] },
-    { id: 'maintenance', group: 'support', phase: 'A5', icon: 'wrench', name: b('الصيانة', 'Maintenance'),
+    { id: 'maintenance', group: 'support', icon: 'wrench', name: b('الصيانة', 'Maintenance'),
       screens: [b('الصيانة الوقائية بالساعات أو الكبسات', 'Preventive plans by hours or strokes'), b('أوامر شغل الأعطال', 'Breakdown work orders'), b('صرف قطع الغيار', 'Spare-part issues'), b('تاريخ كل معدة', 'Machine history')],
       kpis: [b('متوسط الوقت بين الأعطال', 'Mean time between failures'), b('متوسط وقت الإصلاح', 'Mean time to repair'), b('الالتزام بالوقائي', 'Preventive compliance')], uses: ['assets', 'spareParts'] },
-    { id: 'energy', group: 'support', phase: 'A5', icon: 'bolt', name: b('الطاقة والمرافق', 'Energy & utilities'),
+    { id: 'energy', group: 'support', icon: 'bolt', name: b('الطاقة والمرافق', 'Energy & utilities'),
       screens: [b('قراءات عدادات الغاز لكل فرن وأتومايزر', 'Gas meter readings per kiln and atomizer'), b('الكهرباء والمية', 'Electricity and water'), b('الاستهلاك لكل م²', 'Consumption per m²'), b('تنبيه الانحراف', 'Deviation alerts')],
       kpis: [b('غاز م³ لكل م²', 'Gas m³ per m²'), b('كهرباء ك.و.س لكل م²', 'kWh per m²'), b('تكلفة الطاقة لكل م²', 'Energy cost per m²')], uses: ['assets'] },
-    { id: 'people', group: 'support', phase: 'A5', icon: 'users', name: b('الحضور والورديات', 'Attendance & shifts'),
+    { id: 'people', group: 'support', icon: 'users', name: b('الحضور والورديات', 'Attendance & shifts'),
       screens: [b('جداول الورديات', 'Shift rosters'), b('الحضور والانصراف', 'Time and attendance'), b('الإجازات والإضافي', 'Leave and overtime'), b('تصدير الساعات لنظام المرتبات', 'Hours export to payroll')],
       kpis: [b('نسبة الحضور', 'Attendance rate'), b('ساعات الإضافي', 'Overtime hours'), b('م² لكل عامل', 'm² per worker')], uses: ['employees'] },
-    { id: 'costing', group: 'support', phase: 'A5', icon: 'coins', name: b('التكاليف والتحصيل', 'Costing & collections'),
+    { id: 'costing', group: 'support', icon: 'coins', name: b('التكاليف والتحصيل', 'Costing & collections'),
       screens: [b('تكلفة المتر المعيارية لكل منتج', 'Standard cost per m² by product'), b('الفعلي مقابل المعياري', 'Actual against standard'), b('أعمار ديون التجار', 'Dealer receivables ageing'), b('تصدير القيود لبرنامج الحسابات', 'Journal export to accounting')],
       kpis: [b('تكلفة م² فعلية', 'Actual cost per m²'), b('هامش كل منتج', 'Margin by product'), b('ديون فوق 90 يوم', 'Receivables over 90 days')], uses: ['products', 'dealers'] },
-    { id: 'safety', group: 'support', phase: 'A5', icon: 'shield', name: b('السلامة والبيئة', 'Health, safety & environment'),
+    { id: 'safety', group: 'support', icon: 'shield', name: b('السلامة والبيئة', 'Health, safety & environment'),
       screens: [b('الحوادث والإصابات', 'Incidents and injuries'), b('تصاريح الشغل الخطر', 'Permits to work'), b('فحص معدات الوقاية', 'Protective equipment checks'), b('قياسات الغبار والانبعاثات', 'Dust and emission readings')],
       kpis: [b('أيام بلا إصابات', 'Days without injury'), b('ملاحظات مفتوحة', 'Open observations')], uses: ['employees', 'materials'] },
   ];
@@ -395,7 +444,7 @@
   function statusChip(status) {
     var tone = {
       active: 'pos', running: 'pos', new: 'accent', discontinued: '', maintenance: 'warn', standby: '', onLeave: 'warn', suspended: 'bad', creditHold: 'bad', inactive: '',
-      confirmed: '', reserved: 'accent', dispatched: 'accent', delivered: 'pos',
+      confirmed: '', reserved: 'accent', dispatched: 'accent', delivered: 'pos', requested: 'warn', ordered: 'accent', received: 'pos',
     }[status];
     return chip(t('s.' + status), tone);
   }
@@ -419,6 +468,7 @@
   function supplierName(id) { return id && by.suppliers[id] ? L(by.suppliers[id].name) : t('origin.local'); }
   function productsUsingRecipe(id) { return DB.products.filter(function (p) { return p.bodyRecipe === id || p.glazeRecipe === id; }); }
   function price(p, grade) { return p.prices.filter(function (x) { return x.grade === grade; })[0].perM2; }
+  function poItemName(o) { return o.itemType === 'material' ? by.materials[o.itemId].name : by.spareParts[o.itemId].name; }
 
   var LISTS = {
     products: {
@@ -679,6 +729,53 @@
         { key: 'orders', label: 'c.orders', end: true, sort: function (d) { return d.orderIds.length; }, cell: function (d) { return '<span class="num">' + num(d.orderIds.length) + '</span>'; } },
         { key: 'pallets', label: 'c.pallets', end: true, sort: function (d) { return d.pallets; }, cell: function (d) { return '<span class="num">' + num(d.pallets) + '</span>'; } },
         { key: 'status', label: 'c.status', sort: function (d) { return t('s.' + d.status); }, cell: function (d) { return statusChip(d.status); } },
+      ],
+    },
+    purchaseOrders: {
+      kind: 'purchaseOrder', rows: function () { return DB.purchaseOrders; },
+      search: function (o) { return o.poNumber + ' ' + L(poItemName(o)); },
+      filters: [
+        { key: 'itemType', label: 'c.itemType', options: function () { return [['material', t('p.materials')], ['part', t('p.spareParts')]]; }, test: function (o, v) { return o.itemType === v; } },
+        { key: 'status', label: 'c.status', options: function () { return ['requested', 'ordered', 'received'].map(function (k) { return [k, t('s.' + k)]; }); }, test: function (o, v) { return o.status === v; } },
+      ],
+      columns: [
+        { key: 'poNumber', label: 'c.poNumber', sort: function (o) { return o.poNumber; }, cell: function (o) { return '<span class="mono">' + esc(o.poNumber) + '</span>'; } },
+        { key: 'item', label: 'c.item', sort: function (o) { return L(poItemName(o)); }, cell: function (o) { return esc(L(poItemName(o))); } },
+        { key: 'supplier', label: 'c.supplier', sort: function (o) { return supplierName(o.supplierId); }, cell: function (o) { return esc(supplierName(o.supplierId)); } },
+        { key: 'qty', label: 'c.qty', end: true, sort: function (o) { return o.quantity; }, cell: function (o) { return '<span class="num">' + num(o.quantity) + ' ' + esc(unit(o.unit)) + '</span>'; } },
+        { key: 'requested', label: 'c.requested', sort: function (o) { return o.requestedAt; }, cell: function (o) { return '<span class="num small">' + esc(date(o.requestedAt)) + '</span>'; } },
+        { key: 'status', label: 'c.status', sort: function (o) { return t('s.' + o.status); }, cell: function (o) { return statusChip(o.status); } },
+      ],
+    },
+    workOrders: {
+      kind: 'workOrder', rows: function () { return DB.workOrders; },
+      search: function (w) { return by.assets[w.assetId].code + ' ' + w.kind; },
+      filters: [
+        { key: 'kind', label: 'c.kind', options: function () { return [['preventive', t('maint.preventive')], ['breakdown', t('maint.breakdown')]]; }, test: function (w, v) { return w.kind === v; } },
+        { key: 'status', label: 'c.status', options: function () { return [['open', t('s.open')], ['closed', t('s.closed')]]; }, test: function (w, v) { return w.status === v; } },
+      ],
+      columns: [
+        { key: 'asset', label: 'c.asset', sort: function (w) { return by.assets[w.assetId].code; }, cell: function (w) { return esc(by.assets[w.assetId].code) + ' <span class="muted small">' + esc(L(DB.assetTypes[by.assets[w.assetId].type])) + '</span>'; } },
+        { key: 'kind', label: 'c.kind', sort: function (w) { return w.kind; }, cell: function (w) { return chip(w.kind === 'preventive' ? t('maint.preventive') : t('maint.breakdown'), w.kind === 'preventive' ? '' : 'warn', true); } },
+        { key: 'opened', label: 'c.opened', sort: function (w) { return w.openedAt; }, cell: function (w) { return '<span class="num small">' + esc(date(w.openedAt)) + '</span>'; } },
+        { key: 'closed', label: 'c.closed', sort: function (w) { return w.closedAt || ''; }, cell: function (w) { return '<span class="num small">' + (w.closedAt ? esc(date(w.closedAt)) : '—') + '</span>'; } },
+        { key: 'technician', label: 'c.technician', sort: function (w) { return L(by.employees[w.by].name); }, cell: function (w) { return esc(L(by.employees[w.by].name)); } },
+        { key: 'status', label: 'c.status', sort: function (w) { return t('s.' + w.status); }, cell: function (w) { return w.status === 'open' ? chip(t('s.open'), 'warn') : chip(t('s.closed'), 'pos', true); } },
+      ],
+    },
+    safetyIncidents: {
+      kind: 'safetyIncident', rows: function () { return DB.safetyIncidents; },
+      search: function (s) { return s.id + ' ' + L(DB.areas[s.area]) + ' ' + s.severity; },
+      filters: [
+        { key: 'severity', label: 'c.severity', options: function () { return ['near_miss', 'minor', 'lost_time'].map(function (k) { return [k, t('safety.' + k)]; }); }, test: function (s, v) { return s.severity === v; } },
+        { key: 'status', label: 'c.status', options: function () { return [['open', t('s.open')], ['closed', t('s.closed')]]; }, test: function (s, v) { return (v === 'closed') === s.closed; } },
+      ],
+      columns: [
+        { key: 'date', label: 'c.date', sort: function (s) { return s.date; }, cell: function (s) { return '<span class="num small">' + esc(date(s.date)) + '</span>'; } },
+        { key: 'area', label: 'c.area', sort: function (s) { return L(DB.areas[s.area]); }, cell: function (s) { return esc(L(DB.areas[s.area])); } },
+        { key: 'severity', label: 'c.severity', sort: function (s) { return s.severity; }, cell: function (s) { return chip(t('safety.' + s.severity), s.severity === 'lost_time' ? 'bad' : s.severity === 'minor' ? 'warn' : '', true); } },
+        { key: 'reportedBy', label: 'c.reportedBy', sort: function (s) { return L(by.employees[s.reportedBy].name); }, cell: function (s) { return esc(L(by.employees[s.reportedBy].name)); } },
+        { key: 'status', label: 'c.status', sort: function (s) { return s.closed ? 1 : 0; }, cell: function (s) { return s.closed ? chip(t('s.closed'), 'pos', true) : chip(t('s.open'), 'warn'); } },
       ],
     },
   };
@@ -1120,6 +1217,184 @@
       '<section class="card"><div class="section-title"><h2>' + esc(t('glaze.tableTitle')) + '</h2></div>' + table + '</section>';
   }
 
+  // ================================================================ A5 pages
+  function renderPurchasingPage() {
+    var requested = DB.purchaseOrders.filter(function (o) { return o.status === 'requested'; });
+    var ordered = DB.purchaseOrders.filter(function (o) { return o.status === 'ordered'; });
+    var received = DB.purchaseOrders.filter(function (o) { return o.status === 'received'; });
+    var belowReorder = DB.materials.filter(function (m) { return m.onHand < m.minStock; }).length;
+
+    var stats = statTiles([
+      { value: num(requested.length), label: t('purch.kpi.requested') },
+      { value: num(ordered.length), label: t('purch.kpi.ordered') },
+      { value: num(received.length), label: t('purch.kpi.received') },
+      { value: num(belowReorder), label: t('purch.kpi.belowReorder') },
+    ]);
+
+    return pageHead(L(MODULE_BY_ID.purchasing.name), t('purch.sub'), 'g.commercial') + stats +
+      '<div class="row spread"><h2 style="margin:0">' + esc(t('purch.logTitle')) + '</h2></div>' + renderListPage('purchaseOrders', true);
+  }
+
+  function renderMaintenancePage() {
+    var openWO = DB.workOrders.filter(function (w) { return w.status === 'open'; });
+    var closedBreakdowns = DB.workOrders.filter(function (w) { return w.kind === 'breakdown' && w.status === 'closed' && w.closedAt; });
+    var avgRepairDays = closedBreakdowns.length ? round2(closedBreakdowns.reduce(function (s, w) { return s + (Date.parse(w.closedAt) - Date.parse(w.openedAt)) / 864e5; }, 0) / closedBreakdowns.length) : 0;
+    var overdueAssets = DB.assets.filter(function (a) {
+      if (a.pmBasis === 'calendar') return addDays(a.lastPm, a.pmInterval) < DB.referenceDate;
+      return a.meter != null && a.meter >= (a.meterAtLastPm + a.pmInterval);
+    });
+
+    var stats = statTiles([
+      { value: num(openWO.length), label: t('maint.kpi.open') },
+      { value: num(avgRepairDays, 1) + ' ' + t('maint.daysUnit'), label: t('maint.kpi.mttr') },
+      { value: num(overdueAssets.length), label: t('maint.kpi.overduePm') },
+      { value: num(closedBreakdowns.length), label: t('maint.kpi.breakdowns45') },
+    ]);
+
+    var kindRows = [
+      { label: t('maint.preventive'), value: DB.workOrders.filter(function (w) { return w.kind === 'preventive'; }).length },
+      { label: t('maint.breakdown'), value: DB.workOrders.filter(function (w) { return w.kind === 'breakdown'; }).length, tone: 'warn' },
+    ];
+
+    return pageHead(L(MODULE_BY_ID.maintenance.name), t('maint.sub'), 'g.support') + stats +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('maint.byKindTitle')) + '</h2></div>' + rankBars(kindRows) + '</section>' +
+      '<div class="row spread"><h2 style="margin:0">' + esc(t('maint.logTitle')) + '</h2></div>' + renderListPage('workOrders', true);
+  }
+
+  function renderEnergyPage() {
+    var last7 = new Set(WINDOW.slice(-7));
+    var todayReadings = DB.energyReadings.filter(function (e) { return e.date === DB.referenceDate; });
+    var gasToday = sumField(todayReadings.filter(function (e) { return e.meter === 'gas'; }), 'value');
+    var elecToday = sumField(todayReadings.filter(function (e) { return e.meter === 'electricity'; }), 'value');
+    var waterToday = sumField(todayReadings.filter(function (e) { return e.meter === 'water'; }), 'value');
+
+    var last7Readings = DB.energyReadings.filter(function (e) { return last7.has(e.date); });
+    var gas7 = sumField(last7Readings.filter(function (e) { return e.meter === 'gas'; }), 'value');
+    var kiln7 = sumField(DB.shiftReports.filter(function (s) { return last7.has(s.date); }), 'kilnOutM2');
+    var gasPerM2 = kiln7 ? round2(gas7 / kiln7) : 0;
+
+    var stats = statTiles([
+      { value: num(gasToday) + ' ' + m3(), label: t('energy.kpi.gasToday') },
+      { value: num(elecToday), label: t('energy.kpi.elecToday') },
+      { value: num(waterToday) + ' ' + m3(), label: t('energy.kpi.waterToday') },
+      { value: num(gasPerM2) + ' ' + t('exec.gasUnit'), label: t('energy.kpi.gasPerM2') },
+    ]);
+
+    var elecTrend = WINDOW.map(function (d) { return { date: d, value: sumField(DB.energyReadings.filter(function (e) { return e.date === d && e.meter === 'electricity'; }), 'value') }; });
+
+    var gasByLine = {};
+    last7Readings.filter(function (e) { return e.meter === 'gas' && e.assetId; }).forEach(function (e) {
+      var asset = by.assets[e.assetId];
+      var key = asset.type === 'kiln' ? asset.area : 'atomizer';
+      gasByLine[key] = (gasByLine[key] || 0) + e.value;
+    });
+    var gasRows = Object.keys(gasByLine).map(function (k) { return { label: k === 'atomizer' ? t('energy.atomizer') : L(LINE[k].name), value: gasByLine[k] }; })
+      .sort(function (a, b) { return b.value - a.value; });
+
+    return pageHead(L(MODULE_BY_ID.energy.name), t('energy.sub'), 'g.support') + stats +
+      '<div class="grid-2">' +
+        '<section class="card"><div class="section-title"><h2>' + esc(t('energy.elecTrendTitle')) + '</h2></div>' + trendChart(elecTrend, { color: 'var(--accent)', format: function (v) { return num(v) + ' ' + t('energy.kwhUnit'); }, label: t('energy.elecTrendTitle') }) + '</section>' +
+        '<section class="card"><div class="section-title"><h2>' + esc(t('energy.gasByLineTitle')) + '</h2></div>' + rankBars(gasRows, { format: function (v) { return num(v) + ' ' + m3(); } }) + '</section>' +
+      '</div>';
+  }
+
+  function renderPeoplePage() {
+    var dateSet = {}; DB.attendance.forEach(function (a) { dateSet[a.date] = true; });
+    var latestDate = Object.keys(dateSet).sort().pop();
+    var latestRows = DB.attendance.filter(function (a) { return a.date === latestDate; });
+    var totalHead = sumField(latestRows, 'headcount'), totalPresent = sumField(latestRows, 'present'), totalOnLeave = sumField(latestRows, 'onLeave'), totalAbsent = sumField(latestRows, 'absent');
+    var attendanceRate = totalHead ? Math.round(totalPresent / totalHead * 100) : 0;
+    var overtime30 = sumField(DB.attendance, 'overtimeHours');
+
+    var stats = statTiles([
+      { value: num(attendanceRate) + pct(), label: t('people.kpi.attendance') },
+      { value: num(totalOnLeave), label: t('people.kpi.onLeave') },
+      { value: num(totalAbsent), label: t('people.kpi.absent') },
+      { value: num(overtime30), label: t('people.kpi.overtime30') },
+    ]);
+
+    var byDept = latestRows.map(function (a) { return { label: L(by.departments[a.departmentId].name), value: a.headcount ? Math.round(a.present / a.headcount * 100) : 0 }; })
+      .sort(function (x, y) { return y.value - x.value; });
+
+    var otByDate = {};
+    DB.attendance.forEach(function (a) { otByDate[a.date] = (otByDate[a.date] || 0) + a.overtimeHours; });
+    var otTrend = Object.keys(otByDate).sort().map(function (d) { return { date: d, value: otByDate[d] }; });
+
+    return pageHead(L(MODULE_BY_ID.people.name), t('people.sub'), 'g.support') + stats +
+      '<div class="grid-2">' +
+        '<section class="card"><div class="section-title"><h2>' + esc(t('people.byDeptTitle')) + '</h2></div>' + rankBars(byDept, { format: function (v) { return num(v) + pct(); } }) + '</section>' +
+        '<section class="card"><div class="section-title"><h2>' + esc(t('people.otTrendTitle')) + '</h2></div>' + trendChart(otTrend, { color: 'var(--warn)', format: function (v) { return num(v) + ' ' + t('prod.hoursUnit'); }, label: t('people.otTrendTitle') }) + '</section>' +
+      '</div>';
+  }
+
+  function renderCostingPage() {
+    var buckets = { current: 0, d30: 0, d60: 0, d90: 0 };
+    var dealerBalances = {};
+    DB.salesOrders.filter(function (o) { return o.status === 'delivered'; }).forEach(function (o) {
+      var dealer = by.dealers[o.dealerId];
+      var due = addDays(o.date, dealer.paymentTermsDays || 0);
+      var overdueDays = Math.max(0, (Date.parse(DB.referenceDate) - Date.parse(due)) / 864e5);
+      var amount = orderRevenue(o);
+      var bucketKey = overdueDays <= 0 ? 'current' : overdueDays <= 30 ? 'd30' : overdueDays <= 60 ? 'd60' : 'd90';
+      buckets[bucketKey] += amount;
+      if (!dealerBalances[o.dealerId]) dealerBalances[o.dealerId] = { dealerId: o.dealerId, amount: 0, maxOverdue: 0 };
+      dealerBalances[o.dealerId].amount += amount;
+      dealerBalances[o.dealerId].maxOverdue = Math.max(dealerBalances[o.dealerId].maxOverdue, overdueDays);
+    });
+
+    var totalOutstanding = buckets.current + buckets.d30 + buckets.d60 + buckets.d90;
+    var dealersOver90 = Object.keys(dealerBalances).filter(function (id) { return dealerBalances[id].maxOverdue > 90; }).length;
+
+    var stats = statTiles([
+      { value: money(totalOutstanding), label: t('costing.kpi.outstanding') },
+      { value: money(buckets.d90), label: t('costing.kpi.over90') },
+      { value: num(dealersOver90), label: t('costing.kpi.dealersOver90') },
+    ]);
+
+    var bucketRows = [
+      { label: t('costing.current'), value: buckets.current },
+      { label: t('costing.d30'), value: buckets.d30, tone: 'warn' },
+      { label: t('costing.d60'), value: buckets.d60, tone: 'warn' },
+      { label: t('costing.d90'), value: buckets.d90, tone: 'bad' },
+    ];
+
+    var rows = Object.keys(dealerBalances).map(function (id) { return dealerBalances[id]; }).sort(function (a, b) { return b.amount - a.amount; }).slice(0, 25);
+    var tableRows = rows.map(function (r) {
+      var dealer = by.dealers[r.dealerId];
+      var bucketKey = r.maxOverdue <= 0 ? 'current' : r.maxOverdue <= 30 ? 'd30' : r.maxOverdue <= 60 ? 'd60' : 'd90';
+      var tone = bucketKey === 'd90' ? 'bad' : (bucketKey === 'd60' || bucketKey === 'd30') ? 'warn' : '';
+      return '<tr><td>' + openLink('dealer', r.dealerId, L(dealer.name)) + '</td><td class="end num">' + num(r.amount) + '</td><td class="end">' + chip(t('costing.' + bucketKey), tone, !tone) + '</td></tr>';
+    }).join('');
+    var table = '<div class="table-wrap"><table><thead><tr><th>' + esc(t('c.dealer')) + '</th><th class="end">' + esc(t('c.revenue')) + '</th><th class="end">' + esc(t('costing.bucket')) + '</th></tr></thead><tbody>' + tableRows + '</tbody></table></div>';
+
+    return pageHead(L(MODULE_BY_ID.costing.name), t('costing.sub'), 'g.support') + stats +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('costing.ageingTitle')) + '</h2></div>' + rankBars(bucketRows, { format: money }) + '</section>' +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('costing.dealersTitle')) + '</h2></div>' + table + '</section>';
+  }
+
+  function renderSafetyPage() {
+    var lostTime = DB.safetyIncidents.filter(function (s) { return s.severity === 'lost_time'; });
+    var lastLostTime = lostTime.length ? lostTime.map(function (s) { return s.date; }).sort().pop() : null;
+    var daysSince = Math.round((Date.parse(DB.referenceDate) - Date.parse(lastLostTime || DB.windowStart)) / 864e5);
+    var openIncidents = DB.safetyIncidents.filter(function (s) { return !s.closed; });
+
+    var stats = statTiles([
+      { value: num(daysSince), label: t('safety.kpi.daysSinceLostTime') },
+      { value: num(openIncidents.length), label: t('safety.kpi.open') },
+      { value: num(DB.safetyIncidents.length), label: t('safety.kpi.total45') },
+    ]);
+
+    var severityCounts = {};
+    DB.safetyIncidents.forEach(function (s) { severityCounts[s.severity] = (severityCounts[s.severity] || 0) + 1; });
+    var sevRows = ['near_miss', 'minor', 'lost_time'].map(function (k) {
+      return { label: t('safety.' + k), value: severityCounts[k] || 0, tone: k === 'lost_time' ? 'bad' : k === 'minor' ? 'warn' : undefined };
+    });
+
+    return pageHead(L(MODULE_BY_ID.safety.name), t('safety.sub'), 'g.support') + stats +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('safety.bySeverityTitle')) + '</h2></div>' + rankBars(sevRows) + '</section>' +
+      '<div class="row spread"><h2 style="margin:0">' + esc(t('safety.logTitle')) + '</h2></div>' + renderListPage('safetyIncidents', true);
+  }
+
   function renderPlanned(m) {
     var ready = m.uses.map(function (id) {
       var mm = MASTER.filter(function (x) { return x.id === id; })[0];
@@ -1389,10 +1664,39 @@
       ]) + block(t('dispatch.ordersTitle'), ordersHtml);
       return drawerFrame('k.dispatchLoad', d.loadNumber, chip(num(d.orderIds.length) + ' ' + t('c.orders'), '', true), body);
     },
+    purchaseOrder: function (o) {
+      var itemKind = o.itemType === 'material' ? 'material' : 'part';
+      var itemName = o.itemType === 'material' ? L(by.materials[o.itemId].name) : L(by.spareParts[o.itemId].name);
+      var body = facts([
+        [t('c.item'), openLink(itemKind, o.itemId, itemName)], [t('c.supplier'), openLink('supplier', o.supplierId, supplierName(o.supplierId))],
+        [t('c.qty'), num(o.quantity) + ' ' + esc(unit(o.unit))], [t('c.requested'), esc(date(o.requestedAt))],
+        [t('c.status'), statusChip(o.status)], [t('purch.buyer'), openLink('employee', o.by, L(by.employees[o.by].name))],
+      ]);
+      return drawerFrame('k.purchaseOrder', o.poNumber, statusChip(o.status), body);
+    },
+    workOrder: function (w) {
+      var asset = by.assets[w.assetId];
+      var descText = w.description === 'burner' ? t('maint.desc.burner') : w.description === 'annual' ? t('maint.desc.annual') : '—';
+      var body = facts([
+        [t('c.asset'), openLink('asset', w.assetId, asset.code)], [t('c.kind'), chip(w.kind === 'preventive' ? t('maint.preventive') : t('maint.breakdown'), w.kind === 'preventive' ? '' : 'warn', true)],
+        [t('c.opened'), esc(date(w.openedAt))], [t('c.closed'), w.closedAt ? esc(date(w.closedAt)) : '—'],
+        [t('c.technician'), openLink('employee', w.by, L(by.employees[w.by].name))], [t('c.status'), w.status === 'open' ? chip(t('s.open'), 'warn') : chip(t('s.closed'), 'pos', true)],
+        [t('c.description'), esc(descText)],
+      ]);
+      return drawerFrame('k.workOrder', asset.code, w.status === 'open' ? chip(t('s.open'), 'warn') : chip(t('s.closed'), 'pos', true), body);
+    },
+    safetyIncident: function (s) {
+      var body = facts([
+        [t('c.date'), esc(date(s.date))], [t('c.area'), esc(L(DB.areas[s.area]))], [t('c.severity'), chip(t('safety.' + s.severity), s.severity === 'lost_time' ? 'bad' : s.severity === 'minor' ? 'warn' : '', true)],
+        [t('c.reportedBy'), openLink('employee', s.reportedBy, L(by.employees[s.reportedBy].name))], [t('c.status'), s.closed ? chip(t('s.closed'), 'pos', true) : chip(t('s.open'), 'warn')],
+      ]);
+      return drawerFrame('k.safetyIncident', L(DB.areas[s.area]) + ' · ' + date(s.date), s.closed ? chip(t('s.closed'), 'pos', true) : chip(t('s.open'), 'warn'), body);
+    },
   };
   var KIND_SOURCE = {
     product: 'products', material: 'materials', recipe: 'recipes', asset: 'assets', part: 'spareParts', warehouse: 'warehouses', supplier: 'suppliers', dealer: 'dealers', employee: 'employees',
     shiftReport: 'shiftReports', labTest: 'labTests', lot: 'sortingLots', stockPosition: 'stockPositions', salesOrder: 'salesOrders', dispatchLoad: 'dispatchLoads',
+    purchaseOrder: 'purchaseOrders', workOrder: 'workOrders', safetyIncident: 'safetyIncidents',
   };
 
   function renderDrawer() {
@@ -1436,6 +1740,8 @@
     stores: function () { return renderListPage('stock'); },
     sales: function () { return renderListPage('salesOrders'); },
     dispatch: function () { return renderListPage('dispatchLoads'); },
+    purchasing: renderPurchasingPage, maintenance: renderMaintenancePage, energy: renderEnergyPage,
+    people: renderPeoplePage, costing: renderCostingPage, safety: renderSafetyPage,
   };
   function renderPage() {
     if (state.page === 'profile') return renderProfile();
