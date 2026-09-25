@@ -121,3 +121,65 @@ test('meter-based maintenance has a sane last-service reading', () => {
   assert.ok(metered.some((a) => a.meter >= a.meterAtLastPm + a.pmInterval), 'at least one metered service is due');
   assert.ok(metered.some((a) => a.meter < a.meterAtLastPm + a.pmInterval), 'at least one metered service is not yet due');
 });
+
+test('shift reports, lots and downtime reference real lines, products and staff', () => {
+  const lineIds = new Set(db.lines.map((l) => l.id));
+  const productIds = new Set(db.products.map((p) => p.id));
+  const empIds = new Set(db.employees.map((e) => e.id));
+  for (const s of db.shiftReports) {
+    assert.ok(lineIds.has(s.line) && productIds.has(s.productId) && empIds.has(s.supervisorId), s.id);
+    assert.ok(s.kilnOutM2 <= s.kilnInM2 && s.kilnInM2 <= s.pressedM2, s.id);
+    assert.ok(s.firstM2 + s.commercialM2 + s.secondM2 <= s.kilnOutM2 + 1, s.id);
+  }
+  for (const e of db.downtimeEvents) assert.ok(lineIds.has(e.line) && db.codes.downtime.some((c) => c.id === e.codeId), e.id);
+});
+
+test('sorting lots never allocate more than they hold', () => {
+  assert.ok(db.sortingLots.length > 0);
+  for (const l of db.sortingLots) assert.ok(l.reservedM2 + l.dispatchedM2 <= l.m2 + 1e-6, l.id);
+});
+
+test('sales orders, dispatch loads and purchase orders reference real records', () => {
+  const lotIds = new Set(db.sortingLots.map((l) => l.id));
+  const dealerIds = new Set(db.dealers.map((d) => d.id));
+  const orderIds = new Set(db.salesOrders.map((o) => o.id));
+  const empIds = new Set(db.employees.map((e) => e.id));
+  const materialIds = new Set(db.materials.map((m) => m.id));
+  const partIds = new Set(db.spareParts.map((p) => p.id));
+  const supplierIds = new Set(db.suppliers.map((s) => s.id));
+  const assetIds = new Set(db.assets.map((a) => a.id));
+  for (const o of db.salesOrders) {
+    assert.ok(dealerIds.has(o.dealerId), o.id);
+    for (const l of o.lines) assert.ok(lotIds.has(l.lotId), o.id);
+  }
+  for (const d of db.dispatchLoads) {
+    assert.ok(empIds.has(d.driverId), d.id);
+    for (const id of d.orderIds) assert.ok(orderIds.has(id), d.id);
+  }
+  for (const p of db.purchaseOrders) {
+    assert.ok(supplierIds.has(p.supplierId), p.id);
+    assert.ok(p.itemType === 'material' ? materialIds.has(p.itemId) : partIds.has(p.itemId), p.id);
+  }
+  for (const w of db.workOrders) assert.ok(assetIds.has(w.assetId) && empIds.has(w.by), w.id);
+});
+
+test('the L1 maintenance week and L2 shade incident show up in the shift data', () => {
+  const l1 = db.shiftReports.filter((s) => s.line === 'L1' && s.date >= db.incidents.l1MaintFrom && s.date <= db.incidents.l1MaintTo);
+  assert.equal(l1.length, 0, 'no output while kiln 1 is stripped down');
+  const rate = (rows) => rows.reduce((sum, s) => sum + s.firstM2 / (s.kilnOutM2 || 1), 0) / rows.length;
+  const before = db.shiftReports.filter((s) => s.line === 'L2' && s.date < db.incidents.l2IssueFrom);
+  const during = db.shiftReports.filter((s) => s.line === 'L2' && s.date >= db.incidents.l2IssueFrom && s.date <= db.incidents.l2IssueTo);
+  const after = db.shiftReports.filter((s) => s.line === 'L2' && s.date > db.incidents.l2IssueTo);
+  assert.ok(rate(during) < rate(before) - 0.05, 'first-choice yield visibly drops during the burner issue');
+  assert.ok(rate(after) > rate(during) + 0.05, 'yield recovers afterwards');
+});
+
+test('lab test values respect their pass/fail spec', () => {
+  const byId = Object.fromEntries(db.codes.tests.map((q) => [q.id, q]));
+  for (const t of db.labTests.filter((t) => t.stage === 'finished')) {
+    const spec = byId[t.testCodeId].spec[t.family];
+    if (!spec) continue;
+    const inRange = (spec[0] == null || t.value >= spec[0]) && (spec[1] == null || t.value <= spec[1]);
+    assert.equal(t.pass, inRange, `${t.id} ${t.testCodeId}`);
+  }
+});

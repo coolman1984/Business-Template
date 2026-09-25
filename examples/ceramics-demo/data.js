@@ -46,6 +46,7 @@
   function pad(n, w) { var s = String(n); while (s.length < w) s = '0' + s; return s; }
   function round5(n) { return Math.round(n / 5) * 5; }
   function round2(n) { return Math.round(n * 100) / 100; }
+  function makeUid() { var seq = 0; return function (prefix) { seq++; return prefix + '-' + seq; }; }
 
   // ---------------------------------------------------------------- company
   var company = {
@@ -350,6 +351,8 @@
         id: row[0], code: row[0], name: b(row[1], row[2]), category: row[3], unit: unit, origin: row[5], imported: imported,
         stdCost: row[6], supplierId: row[7], warehouseId: row[8],
         minStock: min, reorderQty: Math.round(min * r.between(1.5, 3)),
+        // A handful sit below the reorder point, so purchasing has real work to show.
+        onHand: r.chance(0.14) ? r.int(0, Math.max(0, min - 1)) : r.int(min, min * 4),
         leadTimeDays: imported ? r.int(35, 75) : r.int(3, 14),
       };
     });
@@ -859,6 +862,374 @@
     testStages: { finished: b('منتج تام', 'Finished product'), process: b('أثناء التشغيل', 'In process'), incoming: b('خامات واردة', 'Incoming materials') },
   };
 
+  // ---------------------------------------------------------------- operational history (A2-A5)
+  // A rolling 45-day window ending on the reference date. Long enough to show trends and a
+  // recovered incident, short enough to stay fast in a browser table.
+  var WINDOW_DAYS = 45;
+  function dateAt(offsetDays) { return new Date(Date.parse(REFERENCE_DATE + 'T00:00:00Z') + offsetDays * 864e5).toISOString().slice(0, 10); }
+  function atTime(dateIso, hhmm) { return dateIso + 'T' + hhmm + ':00.000Z'; }
+  var WINDOW = []; for (var _d = -(WINDOW_DAYS - 1); _d <= 0; _d++) WINDOW.push(dateAt(_d));
+  var SHIFT_START = { A: '06:00', B: '14:00', C: '22:00' };
+  var SHADES = ['A', 'B', 'C', 'D', 'E', 'F'];
+  var GAS_RATE_M2 = { porcelain: 1.75, floor: 1.25, wall: 0.95 }; // m3 per m2, illustrative for the demo, not a lab measurement
+  // Scripted incidents the sales tour walks through, both inside the data window:
+  var L1_MAINT_FROM = dateAt(-33), L1_MAINT_TO = dateAt(-27); // planned kiln 1 shutdown, a full week
+  var L2_ISSUE_FROM = dateAt(-24), L2_ISSUE_TO = dateAt(-18); // kiln 2 burner drifts, shade yield drops, then recovers
+
+  function genOperations(products, assets, materials, spareParts, warehouses, employees, departments, dealers, recipes, uid) {
+    var rShift = rng(8), rDown = rng(9), rBatch = rng(10), rLab = rng(13), rLot = rng(14),
+      rSales = rng(15), rDispatch = rng(16), rPurch = rng(17), rWork = rng(18), rEnergy = rng(19), rAtt = rng(20), rSafety = rng(21), rPlan = rng(22);
+    var fgWarehouse = warehouses.filter(function (w) { return w.id === 'WH-FG'; })[0];
+    var line1Kiln = assets.filter(function (a) { return a.type === 'kiln' && a.area === 'L1'; })[0];
+    var line2Kiln = assets.filter(function (a) { return a.type === 'kiln' && a.area === 'L2'; })[0];
+    var byId = {}; products.forEach(function (p) { (byId[p.line] = byId[p.line] || []).push(p); });
+    function activeProduct(rr, lineId) {
+      var pool = byId[lineId].filter(function (p) { return p.status !== 'discontinued'; });
+      return rr.pick(pool);
+    }
+    function productShades(rr, productId) {
+      var n = 2 + (productId.charCodeAt(productId.length - 1) % 4); // 2-5 shades, stable per product
+      return SHADES.slice(0, n);
+    }
+    function pickShade(rr, shadesForProduct) {
+      // The first shade dominates a lot's output; the rest trail off, which is what fragments the stock later.
+      var weights = shadesForProduct.map(function (_s, i) { return [i, Math.pow(0.55, i)]; });
+      return shadesForProduct[rr.weighted(weights)];
+    }
+
+    // ---- body preparation: mill batches + atomizer runs ----
+    var millAssets = assets.filter(function (a) { return a.type === 'ballMill' && a.status !== 'standby'; });
+    var millBatches = [];
+    WINDOW.forEach(function (date) {
+      var runsToday = rBatch.int(2, 4);
+      for (var i = 0; i < runsToday; i++) {
+        var mill = rBatch.pick(millAssets);
+        var recipe = rBatch.pick(recipes.body);
+        var t = recipe.targets;
+        millBatches.push({
+          id: uid('mb'), millAssetId: mill.id, date: date, shift: rBatch.pick(['A', 'B', 'C']),
+          recipeId: recipe.id, chargeTons: rBatch.int(28, 42), hours: round2(rBatch.between(6, 9)),
+          slipDensity: Math.round(rBatch.between(t.slipDensity[0] - 5, t.slipDensity[1] + 5)),
+          residue63: round2(rBatch.between(t.residue63[0] - 0.2, t.residue63[1] + 0.3)),
+          by: rBatch.pick(employees.filter(function (e) { return e.departmentId === 'D03'; })).id,
+        });
+      }
+    });
+    var atomizer = assets.filter(function (a) { return a.type === 'atomizer'; })[0];
+    var atomizerRuns = WINDOW.map(function (date) {
+      return {
+        id: uid('ar'), assetId: atomizer.id, date: date,
+        powderMoisture: round2(rBatch.between(5.5, 6.6)), throughputTons: rBatch.int(180, 260),
+        by: rBatch.pick(employees.filter(function (e) { return e.departmentId === 'D03'; })).id,
+      };
+    });
+
+    // ---- glaze department: glaze batches ----
+    var glazeMills = assets.filter(function (a) { return a.type === 'glazeMill'; });
+    var glazeBatches = [];
+    WINDOW.forEach(function (date) {
+      var runsToday = rBatch.int(2, 4);
+      for (var i = 0; i < runsToday; i++) {
+        var recipe = rBatch.pick(recipes.glaze);
+        var t = recipe.targets;
+        glazeBatches.push({
+          id: uid('gb'), millAssetId: rBatch.pick(glazeMills).id, date: date, shift: rBatch.pick(['A', 'B', 'C']),
+          recipeId: recipe.id, batchKg: rBatch.int(800, 2600),
+          density: Math.round(rBatch.between(t.density[0] - 10, t.density[1] + 10)),
+          viscositySec: Math.round(rBatch.between(t.viscositySec[0] - 3, t.viscositySec[1] + 3)),
+          by: rBatch.pick(employees.filter(function (e) { return e.departmentId === 'D04'; })).id,
+        });
+      }
+    });
+
+    // ---- production: shift reports, downtime, sorting lots ----
+    var shiftReports = [], downtimeEvents = [], sortingLots = [];
+    var supervisorsByLine = {};
+    lines.forEach(function (l) {
+      var onLine = employees.filter(function (e) { return e.departmentId === 'D02' && e.line === l.id; });
+      var onShift = onLine.filter(function (e) { return e.title.en === 'Shift supervisor'; });
+      supervisorsByLine[l.id] = onShift.length ? onShift : onLine;
+    });
+    var plannedCodes = codes.downtime.filter(function (d) { return d.planned; }).map(function (d) { return d.id; });
+    var unplannedCodes = codes.downtime.filter(function (d) { return !d.planned; }).map(function (d) { return d.id; });
+    lines.forEach(function (line) {
+      var shadesCache = {};
+      WINDOW.forEach(function (date) {
+        var underMaintenance = line.id === 'L1' && date >= L1_MAINT_FROM && date <= L1_MAINT_TO;
+        var burnerIssue = line.id === 'L2' && date >= L2_ISSUE_FROM && date <= L2_ISSUE_TO;
+        ['A', 'B', 'C'].forEach(function (shift) {
+          if (underMaintenance) {
+            downtimeEvents.push({ id: uid('dte'), line: line.id, date: date, shift: shift, codeId: 'DT11', minutes: 480, note: null });
+            return; // no output at all while the kiln is stripped down
+          }
+          var product = activeProduct(rShift, line.id);
+          var theoretical = Math.round(line.capacityM2Day / 3);
+          var downMinutes = 0;
+          var eventsThisShift = rDown.chance(0.18) ? 1 + (rDown.chance(0.25) ? 1 : 0) : 0;
+          for (var i = 0; i < eventsThisShift; i++) {
+            var code = rDown.chance(0.35) ? rDown.pick(plannedCodes) : rDown.pick(unplannedCodes);
+            var minutes = code === 'DT04' || code === 'DT05' ? rDown.int(20, 45) : rDown.int(10, 90);
+            downMinutes += minutes;
+            downtimeEvents.push({ id: uid('dte'), line: line.id, date: date, shift: shift, codeId: code, minutes: minutes, note: null });
+          }
+          if (burnerIssue && rDown.chance(0.3)) {
+            var m = rDown.int(15, 40);
+            downMinutes += m;
+            downtimeEvents.push({ id: uid('dte'), line: line.id, date: date, shift: shift, codeId: 'DT01', minutes: m, note: null });
+          }
+          downMinutes = Math.min(downMinutes, 420);
+          var runFactor = (480 - downMinutes) / 480;
+          var pressedM2 = Math.round(theoretical * runFactor * rShift.between(0.92, 1.04));
+          var kilnInM2 = Math.round(pressedM2 * (1 - rShift.between(0.005, 0.015)));
+          var kilnOutM2 = Math.round(kilnInM2 * (1 - rShift.between(0.004, 0.012)));
+          var firstPct = burnerIssue ? rShift.between(0.72, 0.80) : rShift.between(0.85, 0.92);
+          var commercialPct = burnerIssue ? rShift.between(0.10, 0.14) : rShift.between(0.05, 0.08);
+          var secondPct = Math.max(0.01, 1 - firstPct - commercialPct - 0.02);
+          var firstM2 = Math.round(kilnOutM2 * firstPct);
+          var commercialM2 = Math.round(kilnOutM2 * commercialPct);
+          var secondM2 = Math.max(0, kilnOutM2 - firstM2 - commercialM2);
+          var size = sizes[product.sizeId];
+          var gasM3 = Math.round(kilnOutM2 * GAS_RATE_M2[product.family] * rShift.between(0.92, 1.1));
+          var report = {
+            id: uid('sr'), line: line.id, date: date, shift: shift, productId: product.id,
+            pressedM2: pressedM2, kilnInM2: kilnInM2, kilnOutM2: kilnOutM2, firstM2: firstM2, commercialM2: commercialM2, secondM2: secondM2,
+            downtimeMinutes: downMinutes, gasM3: gasM3, supervisorId: rShift.pick(supervisorsByLine[line.id]).id,
+          };
+          shiftReports.push(report);
+          if (kilnOutM2 > 0) {
+            if (!shadesCache[product.id]) shadesCache[product.id] = productShades(rLot, product.id);
+            var shade = pickShade(rLot, shadesCache[product.id]);
+            var perGrade = [['G1', firstM2], ['G2', commercialM2], ['G3', secondM2]].filter(function (g) { return g[1] > 0; });
+            perGrade.forEach(function (g) {
+              sortingLots.push({
+                id: uid('lot'), lotNumber: 'LOT-' + date.replace(/-/g, '').slice(2) + '-' + pad(sortingLots.length + 1, 4),
+                shiftReportId: report.id, date: date, shift: shift, line: line.id, productId: product.id, grade: g[0], shade: shade,
+                warehouseId: fgWarehouse.id, m2: g[1], boxes: Math.round(g[1] / size.m2Box),
+                reservedM2: 0, dispatchedM2: 0,
+              });
+            });
+          }
+        });
+      });
+    });
+
+    // ---- lab tests: incoming, in-process, finished ----
+    var labTechs = employees.filter(function (e) { return e.departmentId === 'D06'; });
+    var labTests = [];
+    var finishedCodes = codes.tests.filter(function (q) { return q.stage === 'finished'; });
+    var processCodes = codes.tests.filter(function (q) { return q.stage === 'process'; });
+    var incomingCodes = codes.tests.filter(function (q) { return q.stage === 'incoming'; });
+    function inSpec(spec, value) {
+      if (!spec) return true;
+      if (spec[0] != null && value < spec[0]) return false;
+      if (spec[1] != null && value > spec[1]) return false;
+      return true;
+    }
+    WINDOW.forEach(function (date) {
+      var count = rLab.int(5, 9);
+      for (var i = 0; i < count; i++) {
+        var kind = rLab.weighted([['finished', 5], ['process', 3], ['incoming', 2]]);
+        var by = rLab.pick(labTechs).id;
+        if (kind === 'finished') {
+          var lotsToday = sortingLots.filter(function (l) { return l.date === date; });
+          if (!lotsToday.length) continue;
+          var lot = rLab.pick(lotsToday);
+          var product = by_(products, lot.productId);
+          var q = rLab.pick(finishedCodes);
+          var spec = q.spec[product.family];
+          var burner = lot.line === 'L2' && date >= L2_ISSUE_FROM && date <= L2_ISSUE_TO;
+          var mid = spec ? (spec[0] != null && spec[1] != null ? (spec[0] + spec[1]) / 2 : spec[0] != null ? spec[0] * 1.15 : spec[1] * 0.85) : 0;
+          var spread = spec ? Math.abs((spec[1] ?? spec[0] * 1.3) - (spec[0] ?? spec[1] * 0.7)) / 2 || Math.abs(mid) * 0.1 || 1 : 1;
+          var value = q.id === 'QT15' && burner ? round2(rLab.between(1.1, 2.2)) : round2(rLab.between(mid - spread * 0.7, mid + spread * 0.7));
+          labTests.push({ id: uid('lt'), testCodeId: q.id, stage: 'finished', date: date, refType: 'lot', refId: lot.id, line: lot.line, family: product.family, value: value, pass: inSpec(spec, value), by: by });
+        } else if (kind === 'process') {
+          var batch = rLab.chance(0.5) && millBatches.length ? rLab.pick(millBatches.filter(function (b) { return b.date === date; })) : rLab.pick(glazeBatches.filter(function (b) { return b.date === date; }));
+          if (!batch) continue;
+          var isBody = !!batch.chargeTons;
+          var q2 = rLab.pick(processCodes);
+          var value2 = round2(rLab.between(0, 100));
+          labTests.push({ id: uid('lt'), testCodeId: q2.id, stage: 'process', date: date, refType: isBody ? 'millBatch' : 'glazeBatch', refId: batch.id, line: null, family: null, value: value2, pass: true, by: by });
+        } else {
+          var mat = rLab.pick(materials);
+          var q3 = rLab.pick(incomingCodes);
+          var value3 = round2(rLab.between(4, 13));
+          labTests.push({ id: uid('lt'), testCodeId: q3.id, stage: 'incoming', date: date, refType: 'material', refId: mat.id, line: null, family: null, value: value3, pass: inSpec(q3.spec[Object.keys(q3.spec)[0]], value3), by: by });
+        }
+      }
+    });
+
+    // ---- production plan: 6 weeks of plan vs actual, per line ----
+    function weekStart(offsetWeeks) {
+      var ref = new Date(Date.parse(REFERENCE_DATE + 'T00:00:00Z'));
+      var day = ref.getUTCDay(); // 0=Sun
+      var monday = new Date(ref.getTime() - ((day + 6) % 7) * 864e5 + offsetWeeks * 7 * 864e5);
+      return monday.toISOString().slice(0, 10);
+    }
+    var productionPlan = [];
+    lines.forEach(function (line) {
+      for (var w = -3; w <= 2; w++) {
+        var ws = weekStart(w);
+        var we = new Date(Date.parse(ws + 'T00:00:00Z') + 6 * 864e5).toISOString().slice(0, 10);
+        var weekDates = WINDOW.filter(function (d) { return d >= ws && d <= we; });
+        var actual = shiftReports.filter(function (s) { return s.line === line.id && weekDates.indexOf(s.date) >= 0; }).reduce(function (sum, s) { return sum + s.pressedM2; }, 0);
+        productionPlan.push({
+          id: uid('plan'), line: line.id, weekStart: ws, productId: rPlan.pick(byId[line.id]).id,
+          plannedM2: Math.round(line.capacityM2Day * 6.2 * rPlan.between(0.9, 1.05)), actualM2: actual,
+        });
+      }
+    });
+
+    // ---- sales orders + dispatch loads, drawing on the finished-goods lots above ----
+    var activeDealers = dealers.filter(function (d) { return d.status !== 'inactive'; });
+    var salesOrders = [], orderSeq = 0;
+    var STATUS_FLOW = ['confirmed', 'reserved', 'dispatched', 'delivered'];
+    WINDOW.forEach(function (date, dIdx) {
+      var ordersToday = rSales.int(2, 5);
+      for (var i = 0; i < ordersToday; i++) {
+        var dealer = rSales.pick(activeDealers);
+        var lineCount = rSales.int(1, 3);
+        var orderLines = [];
+        for (var j = 0; j < lineCount; j++) {
+          var candidates = sortingLots.filter(function (l) { return l.date <= date && l.m2 - l.reservedM2 - l.dispatchedM2 > 5; });
+          if (!candidates.length) continue;
+          var lot = rSales.pick(candidates);
+          var available = lot.m2 - lot.reservedM2 - lot.dispatchedM2;
+          var qty = Math.min(available, Math.round(rSales.between(20, 400)));
+          orderLines.push({ lotId: lot.id, productId: lot.productId, grade: lot.grade, shade: lot.shade, m2: qty });
+        }
+        if (!orderLines.length) continue;
+        orderSeq++;
+        var daysAgo = -dIdx;
+        var progressed = Math.min(STATUS_FLOW.length - 1, Math.max(0, Math.floor((-daysAgo) / 10)));
+        var status = STATUS_FLOW[progressed];
+        var blocked = dealer.status === 'creditHold' && status !== 'delivered';
+        orderLines.forEach(function (l) {
+          var lot = by_(sortingLots, l.lotId);
+          if (blocked) return;
+          if (status === 'reserved' || status === 'dispatched' || status === 'delivered') lot.reservedM2 += l.m2;
+          if (status === 'dispatched' || status === 'delivered') { lot.dispatchedM2 += l.m2; lot.reservedM2 -= l.m2; }
+        });
+        salesOrders.push({
+          id: uid('so'), orderNumber: 'SO-2026-' + pad(orderSeq, 4), date: date, dealerId: dealer.id,
+          status: blocked ? 'confirmed' : status, blockedOnCredit: blocked, lines: orderLines,
+          totalM2: orderLines.reduce(function (s, l) { return s + l.m2; }, 0),
+        });
+      }
+    });
+
+    var dispatchLoads = [];
+    var dispatchable = salesOrders.filter(function (o) { return o.status === 'dispatched' || o.status === 'delivered'; });
+    var drivers = employees.filter(function (e) { return e.departmentId === 'D09' && e.title.en === 'Truck driver'; });
+    var byDate = {}; dispatchable.forEach(function (o) { (byDate[o.date] = byDate[o.date] || []).push(o); });
+    Object.keys(byDate).forEach(function (date) {
+      var pool = byDate[date].slice();
+      while (pool.length) {
+        var take = pool.splice(0, rDispatch.int(1, 2));
+        dispatchLoads.push({
+          id: uid('dsp'), loadNumber: 'DSP-2026-' + pad(dispatchLoads.length + 1, 4), date: date,
+          driverId: rDispatch.pick(drivers).id, orderIds: take.map(function (o) { return o.id; }),
+          pallets: rDispatch.int(6, 22), status: 'delivered',
+        });
+      }
+    });
+
+    // ---- purchasing: requests/orders for materials and spare parts below their reorder point ----
+    var buyers = employees.filter(function (e) { return e.departmentId === 'D10'; });
+    var purchaseOrders = [];
+    materials.filter(function (m) { return m.onHand < m.minStock; }).forEach(function (m) {
+      var placed = rPurch.chance(0.7);
+      purchaseOrders.push({
+        id: uid('po'), poNumber: 'PO-2026-' + pad(purchaseOrders.length + 1, 4), itemType: 'material', itemId: m.id,
+        supplierId: m.supplierId, quantity: m.reorderQty, unit: m.unit,
+        status: placed ? (rPurch.chance(0.5) ? 'received' : 'ordered') : 'requested',
+        requestedAt: dateAt(-rPurch.int(1, 20)), by: rPurch.pick(buyers).id,
+      });
+    });
+    spareParts.filter(function (p) { return p.onHand < p.minStock; }).slice(0, 40).forEach(function (p) {
+      purchaseOrders.push({
+        id: uid('po'), poNumber: 'PO-2026-' + pad(purchaseOrders.length + 1, 4), itemType: 'part', itemId: p.id,
+        supplierId: p.supplierId, quantity: Math.max(1, p.minStock - p.onHand + 2), unit: 'pc',
+        status: rPurch.chance(0.4) ? 'requested' : rPurch.chance(0.5) ? 'ordered' : 'received',
+        requestedAt: dateAt(-rPurch.int(1, 25)), by: rPurch.pick(buyers).id,
+      });
+    });
+
+    // ---- maintenance work orders: preventive (due inside the window) + breakdowns, incl. the L2 burner story ----
+    var techs = employees.filter(function (e) { return e.departmentId === 'D11' && (e.level === 'technician' || e.level === 'professional'); });
+    var workOrders = [];
+    assets.forEach(function (a) {
+      if (a.pmBasis !== 'calendar') return;
+      var due = new Date(Date.parse(a.lastPm + 'T00:00:00Z') + a.pmInterval * 864e5).toISOString().slice(0, 10);
+      if (due >= WINDOW[0] && due <= REFERENCE_DATE) {
+        workOrders.push({ id: uid('wo'), assetId: a.id, kind: 'preventive', openedAt: due, closedAt: due, status: 'closed', description: null, by: rWork.pick(techs).id });
+      }
+    });
+    WINDOW.forEach(function (date) {
+      if (rWork.chance(0.22)) {
+        var asset = rWork.pick(assets.filter(function (a) { return a.status !== 'maintenance'; }));
+        var closed = rWork.chance(0.85);
+        workOrders.push({
+          id: uid('wo'), assetId: asset.id, kind: 'breakdown', openedAt: date,
+          closedAt: closed ? dateAt(Math.round((Date.parse(date) - Date.parse(REFERENCE_DATE)) / 864e5) + rWork.int(0, 2)) : null,
+          status: closed ? 'closed' : 'open', description: null, by: rWork.pick(techs).id,
+        });
+      }
+    });
+    if (line2Kiln) {
+      workOrders.push({ id: uid('wo'), assetId: line2Kiln.id, kind: 'breakdown', openedAt: L2_ISSUE_FROM, closedAt: L2_ISSUE_TO, status: 'closed', description: 'burner', by: rWork.pick(techs).id });
+    }
+    if (line1Kiln) {
+      workOrders.push({ id: uid('wo'), assetId: line1Kiln.id, kind: 'preventive', openedAt: L1_MAINT_FROM, closedAt: L1_MAINT_TO, status: 'closed', description: 'annual', by: rWork.pick(techs).id });
+    }
+
+    // ---- energy readings: gas per kiln + atomizer, electricity for the whole plant ----
+    var kilns = assets.filter(function (a) { return a.type === 'kiln'; });
+    var energyReadings = [];
+    WINDOW.forEach(function (date) {
+      kilns.forEach(function (k) {
+        var lineId = k.area;
+        var dayGas = shiftReports.filter(function (s) { return s.line === lineId && s.date === date; }).reduce(function (s, r) { return s + r.gasM3; }, 0);
+        energyReadings.push({ id: uid('er'), assetId: k.id, date: date, meter: 'gas', value: dayGas, unit: 'm3' });
+      });
+      energyReadings.push({ id: uid('er'), assetId: atomizer.id, date: date, meter: 'gas', value: rEnergy.int(900, 1400), unit: 'm3' });
+      energyReadings.push({ id: uid('er'), assetId: null, date: date, meter: 'electricity', value: rEnergy.int(38000, 52000), unit: 'kWh' });
+      energyReadings.push({ id: uid('er'), assetId: null, date: date, meter: 'water', value: rEnergy.int(280, 420), unit: 'm3' });
+    });
+
+    // ---- attendance: department-day summary for the last 30 days ----
+    var attendance = [];
+    WINDOW.slice(-30).forEach(function (date) {
+      departments.forEach(function (dept) {
+        var staff = employees.filter(function (e) { return e.departmentId === dept.id; });
+        var onLeave = staff.filter(function (e) { return e.status === 'onLeave'; }).length;
+        var absent = rAtt.int(0, Math.max(0, Math.round(staff.length * 0.04)));
+        var present = Math.max(0, staff.length - onLeave - absent);
+        var overtimeHours = dept.shiftBased ? rAtt.int(0, Math.round(staff.length * 1.5)) : 0;
+        attendance.push({ id: uid('att'), date: date, departmentId: dept.id, headcount: staff.length, present: present, onLeave: onLeave, absent: absent, overtimeHours: overtimeHours });
+      });
+    });
+
+    // ---- safety incidents ----
+    var hseStaff = employees.filter(function (e) { return e.departmentId === 'D14'; });
+    var safetyIncidents = [];
+    var incidentDays = [];
+    while (incidentDays.length < 14) { var d = rSafety.pick(WINDOW); if (incidentDays.indexOf(d) < 0) incidentDays.push(d); }
+    incidentDays.sort().forEach(function (date) {
+      safetyIncidents.push({
+        id: uid('si'), date: date, area: rSafety.pick(Object.keys(AREAS)), severity: rSafety.weighted([['near_miss', 6], ['minor', 5], ['lost_time', 1]]),
+        description: null, reportedBy: rSafety.pick(hseStaff.concat(employees.filter(function (e) { return e.level === 'supervisor'; }))).id, closed: rSafety.chance(0.85),
+      });
+    });
+
+    return {
+      millBatches: millBatches, atomizerRuns: atomizerRuns, glazeBatches: glazeBatches,
+      shiftReports: shiftReports, downtimeEvents: downtimeEvents, sortingLots: sortingLots, labTests: labTests, productionPlan: productionPlan,
+      salesOrders: salesOrders, dispatchLoads: dispatchLoads, purchaseOrders: purchaseOrders, workOrders: workOrders,
+      energyReadings: energyReadings, attendance: attendance, safetyIncidents: safetyIncidents,
+    };
+  }
+  function by_(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
+
   // ---------------------------------------------------------------- assemble
   function generate() {
     var products = genProducts();
@@ -872,11 +1243,14 @@
     // Warehouse managers are real employees of the warehouse department.
     var storekeepers = people.employees.filter(function (e) { return e.departmentId === 'D07' && (e.level === 'manager' || e.title.en === 'Storekeeper'); });
     var whs = warehouses.map(function (w, i) { var c = JSON.parse(JSON.stringify(w)); c.keeperId = storekeepers[i % storekeepers.length].id; return c; });
+    var uid = makeUid();
+    var ops = genOperations(products, assets, materials, spareParts, whs, people.employees, people.departments, dealers, recipes, uid);
 
     var db = {
-      version: 'A1',
+      version: 'A2',
       seed: SEED,
       referenceDate: REFERENCE_DATE,
+      windowStart: WINDOW[0],
       company: company, sites: sites, lines: lines, families: families, sizes: sizes, finishes: finishes, designs: designs, grades: grades,
       priceLists: priceLists, products: products,
       materialCategories: MATERIAL_CATEGORIES, units: UNITS, origins: ORIGINS, materials: materials, recipes: recipes,
@@ -885,12 +1259,20 @@
       departments: people.departments, employees: people.employees, reps: people.reps, regions: REGIONS,
       dealerTypes: DEALER_TYPES, dealers: dealers,
       codes: codes,
+      millBatches: ops.millBatches, atomizerRuns: ops.atomizerRuns, glazeBatches: ops.glazeBatches,
+      shiftReports: ops.shiftReports, downtimeEvents: ops.downtimeEvents, sortingLots: ops.sortingLots, labTests: ops.labTests, productionPlan: ops.productionPlan,
+      salesOrders: ops.salesOrders, dispatchLoads: ops.dispatchLoads, purchaseOrders: ops.purchaseOrders, workOrders: ops.workOrders,
+      energyReadings: ops.energyReadings, attendance: ops.attendance, safetyIncidents: ops.safetyIncidents,
+      incidents: { l1MaintFrom: L1_MAINT_FROM, l1MaintTo: L1_MAINT_TO, l2IssueFrom: L2_ISSUE_FROM, l2IssueTo: L2_ISSUE_TO },
     };
     db.counts = {
       products: products.length, materials: materials.length, bodyRecipes: recipes.body.length, glazeRecipes: recipes.glaze.length,
       warehouses: whs.length, suppliers: suppliers.length, assets: assets.length, spareParts: spareParts.length,
       departments: people.departments.length, employees: people.employees.length, dealers: dealers.length,
       defects: codes.defects.length, downtime: codes.downtime.length, tests: codes.tests.length,
+      shiftReports: ops.shiftReports.length, downtimeEvents: ops.downtimeEvents.length, sortingLots: ops.sortingLots.length, labTests: ops.labTests.length,
+      salesOrders: ops.salesOrders.length, dispatchLoads: ops.dispatchLoads.length, purchaseOrders: ops.purchaseOrders.length, workOrders: ops.workOrders.length,
+      energyReadings: ops.energyReadings.length, attendance: ops.attendance.length, safetyIncidents: ops.safetyIncidents.length,
     };
     return db;
   }
