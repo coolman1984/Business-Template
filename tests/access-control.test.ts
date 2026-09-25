@@ -103,6 +103,27 @@ describe('sign-in and sessions', () => {
   });
 });
 
+describe('browser sessions', () => {
+  it('rejects cookie-authenticated writes coming from another site', async () => {
+    const member = m(nour, 'storekeeper');
+    const signIn = await h.api.inject({
+      method: 'POST',
+      url: '/api/auth/sign-in/email',
+      headers: { origin: PUBLIC_URL },
+      payload: { email: member.email, password: member.password },
+    });
+    const setCookie = signIn.headers['set-cookie'];
+    const cookie = (Array.isArray(setCookie) ? setCookie : [setCookie!]).map((c) => c.split(';')[0]).join('; ');
+    const choose = (origin: string) =>
+      h.api.inject({ method: 'POST', url: '/session/membership', headers: { cookie, origin }, payload: { membershipId: member.membershipId } });
+    const evil = await choose('https://evil.example');
+    expect(evil.statusCode).toBe(403);
+    expect(evil.json().details.reasonCode).toBe('cross_site');
+    expect((await choose(PUBLIC_URL)).statusCode).toBe(200);
+    expect((await h.api.inject({ method: 'GET', url: '/me', headers: { cookie } })).statusCode).toBe(200);
+  });
+});
+
 describe('roles', () => {
   it('lets a storekeeper create and edit but not submit', async () => {
     const order = await newOrder(nour, 'storekeeper', 'CAI');

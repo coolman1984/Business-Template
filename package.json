@@ -7,25 +7,34 @@
     "node": ">=22"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p apps/business-web/tsconfig.json",
     "test": "vitest run",
     "db:bootstrap": "tsx scripts/bootstrap.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed-demo": "tsx scripts/seed-demo.ts",
-    "start": "tsx apps/api/src/main.ts"
+    "start": "tsx apps/api/src/main.ts",
+    "build:web": "vite build apps/business-web",
+    "dev:web": "vite apps/business-web"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
     "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3",
+    "vite": "^8.3.1",
     "vitest": "^5.0.1"
   },
   "dependencies": {
+    "@fastify/static": "^10.1.4",
     "ajv": "^8.20.0",
     "better-auth": "1.7.6",
     "fastify": "^5.12.5",
     "kysely": "^0.29.6",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   }
 }

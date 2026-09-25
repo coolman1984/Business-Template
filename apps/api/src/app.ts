@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { listOrders } from '@factory/engine-orders';
 import {
@@ -29,6 +31,8 @@ export interface AppDeps {
   /** The identity library's HTTP handler, mounted under /api/auth. */
   authHandler: (request: Request) => Promise<Response>;
   publicUrl: string;
+  /** Built web app to serve (on-premise installs serve everything from one address). */
+  webRoot?: string;
   logger?: boolean;
 }
 
@@ -43,8 +47,20 @@ function toHeaders(request: FastifyRequest): Headers {
   return headers;
 }
 
-export function buildApp({ db, identity, authHandler, publicUrl, logger = false }: AppDeps): FastifyInstance {
+export function buildApp({ db, identity, authHandler, publicUrl, webRoot, logger = false }: AppDeps): FastifyInstance {
   const app = Fastify({ logger, genReqId: () => randomUUID(), bodyLimit: 256 * 1024 });
+  const publicOrigin = new URL(publicUrl).origin;
+
+  // Browsers send the session cookie automatically, so a state-changing request authenticated by
+  // cookie must come from our own page. Bearer-token clients are not exposed to this attack.
+  // (The identity library applies the same origin check to its own endpoints.)
+  app.addHook('onRequest', async (request, reply) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(request.method) || request.url.startsWith('/api/auth/')) return;
+    if (request.headers.authorization) return;
+    if (request.headers.origin !== publicOrigin) {
+      return reply.status(403).send({ error: 'forbidden', message: 'Cross-site request rejected.', details: { reasonCode: 'cross_site' } });
+    }
+  });
   const registry = new CapabilityRegistry(recipe.capabilities);
   const dispatcher = new CommandDispatcher(db, registry).register(...recipe.commands, ...accessControlCommands(registry));
 
@@ -137,6 +153,16 @@ export function buildApp({ db, identity, authHandler, publicUrl, logger = false 
       return simulateAccess(db, await contextOf(request), registry, { membershipId, resource, action, branchId });
     },
   );
+
+  if (webRoot && existsSync(webRoot)) {
+    app.register(fastifyStatic, { root: webRoot, wildcard: false });
+    // Single-page app: unknown GET paths render the app, which then routes on the client.
+    app.setNotFoundHandler((request, reply) =>
+      request.method === 'GET' && request.headers.accept?.includes('text/html')
+        ? reply.sendFile('index.html')
+        : reply.status(404).send({ error: 'not_found', message: 'Not found.' }),
+    );
+  }
 
   return app;
 }

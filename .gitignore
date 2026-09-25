@@ -3,3 +3,4 @@ dist/
 *.tsbuildinfo
 .env
 coverage/
+apps/business-web/dist/
