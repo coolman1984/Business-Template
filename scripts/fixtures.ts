@@ -10,6 +10,8 @@ interface MemberSpec {
   name: string;
   /** Identity shared across companies: same key in two tenants = one person with two memberships. */
   person?: string;
+  /** Local development convenience only: a fixed, easy-to-type sign-in instead of a random one. */
+  devCredentials?: { email: string; password: string };
   roles?: [roleCode: string, scope: Scope][];
   exceptions?: [resource: string, action: string, effect: 'allow' | 'deny', scope: Scope][];
 }
@@ -50,7 +52,7 @@ export const TWO_TENANTS: TenantSpec[] = [
       { code: 'ALX', name: 'فرع الإسكندرية' },
     ],
     members: [
-      { key: 'admin', name: 'مدير النور', roles: [['company_admin', tenantScope]] },
+      { key: 'admin', name: 'مدير النور', devCredentials: { email: 'admin@test.com', password: 'admin123' }, roles: [['company_admin', tenantScope]] },
       { key: 'secondAdmin', name: 'مدير احتياطي', roles: [['company_admin', tenantScope]] },
       { key: 'cairoClerk', name: 'مدير فرع القاهرة', roles: [['branch_manager', branches('CAI')]] },
       { key: 'storekeeper', name: 'أمين مخزن القاهرة', roles: [['storekeeper', branches('CAI')]] },
@@ -89,7 +91,7 @@ export const TWO_TENANTS: TenantSpec[] = [
     legalEntity: 'الأمل ش.م.م',
     branches: [{ code: 'GIZ', name: 'فرع الجيزة' }],
     members: [
-      { key: 'admin', name: 'مدير الأمل', roles: [['company_admin', tenantScope]] },
+      { key: 'admin', name: 'مدير الأمل', devCredentials: { email: 'admin2@test.com', password: 'admin123' }, roles: [['company_admin', tenantScope]] },
       { key: 'shared', person: 'shared', name: 'موظف مشترك', roles: [['storekeeper', branches('GIZ')]] },
     ],
   },
@@ -114,12 +116,12 @@ export async function seedTenants(
     // Business tables accept writes only inside an operation; provisioning is one.
     await client.query("SELECT set_config('app.operation_id', $1, true)", [randomUUID()]);
 
-    const person = async (key: string, name: string) => {
+    const person = async (key: string, name: string, fixed?: { email: string; password: string }) => {
       const existing = people.get(key);
       if (existing) return existing;
       const authId = randomUUID();
-      const email = `${key}-${authId.slice(0, 8)}@example.test`.toLowerCase();
-      const password = randomBytes(18).toString('base64url');
+      const email = (fixed?.email ?? `${key}-${authId.slice(0, 8)}@example.test`).toLowerCase();
+      const password = fixed?.password ?? randomBytes(18).toString('base64url');
       await client.query(`INSERT INTO auth."user" (id, name, email, "emailVerified") VALUES ($1, $2, $3, true)`, [authId, name, email]);
       await client.query(
         `INSERT INTO auth."account" (id, "accountId", "providerId", "userId", password, "updatedAt")
@@ -171,7 +173,7 @@ export async function seedTenants(
 
       const members: Record<string, SeededMember> = {};
       for (const m of spec.members) {
-        const p = await person(m.person ?? `${spec.code}-${m.key}`, m.name);
+        const p = await person(m.person ?? `${spec.code}-${m.key}`, m.name, m.devCredentials);
         const membership = await one<{ id: string }>('INSERT INTO memberships (tenant_id, user_id, display_name) VALUES ($1, $2, $3) RETURNING id', [
           tenant.id,
           p.userId,
