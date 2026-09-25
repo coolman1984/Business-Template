@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { PermanentJobError, type JobHandler } from '../../packages/platform-core/src/index.js';
 
 /**
@@ -16,7 +17,8 @@ export const makeOrderJob: JobHandler<{ name: string; branchId: string; legalEnt
         tenant_id: job.ctx.tenantId,
         legal_entity_id: p.legalEntityId,
         branch_id: p.branchId,
-        order_number: `JOB-${job.jobId}`,
+        // Deliberately not unique per job: the queue itself must prevent a second run.
+        order_number: `JOB-${randomUUID()}`,
         customer_name: p.name,
         created_by: job.ctx.membershipId,
         updated_by: job.ctx.membershipId,

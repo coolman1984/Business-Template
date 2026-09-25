@@ -1,5 +1,6 @@
 {
   "name": "business-systems-factory",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.33.0",
@@ -15,7 +16,11 @@
     "start": "tsx apps/api/src/main.ts",
     "build:web": "vite build apps/business-web",
     "dev:web": "vite apps/business-web",
-    "worker": "tsx apps/api/src/worker.ts"
+    "worker": "tsx apps/api/src/worker.ts",
+    "audit:archive": "tsx scripts/audit-archive.ts",
+    "audit:verify": "tsx scripts/audit-archive.ts --verify",
+    "backup": "tsx scripts/backup.ts",
+    "restore": "tsx scripts/restore.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",

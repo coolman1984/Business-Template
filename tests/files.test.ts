@@ -97,6 +97,21 @@ describe('upload, scan and publish', () => {
     expect((await download(m(nour, 'cairoClerk'), fileId, v1.id)).rawPayload.equals(PDF_V1)).toBe(true);
   });
 
+  it('keeps the newest version current even when scans finish out of order', async () => {
+    const { fileId } = await attach();
+    await h.upload(m(nour, 'cairoClerk'), `/files/${fileId}/versions`, PDF_V2, 'invoice.pdf');
+    // Hold back version 1's scan so version 2 is published first.
+    await t.ownerQuery(
+      "UPDATE jobs SET run_after = now() + interval '1 hour' WHERE kind = 'files.scan' AND payload->>'versionId' = (SELECT id::text FROM file_versions WHERE file_id = $1 AND version_number = 1)",
+      [fileId],
+    );
+    await h.runJobs();
+    expect((await download(m(nour, 'cairoClerk'), fileId)).rawPayload.equals(PDF_V2)).toBe(true);
+    await t.ownerQuery("UPDATE jobs SET run_after = now() WHERE kind = 'files.scan' AND status = 'queued'");
+    await h.runJobs();
+    expect((await download(m(nour, 'cairoClerk'), fileId)).rawPayload.equals(PDF_V2)).toBe(true);
+  });
+
   it('rejects content that changed after upload', async () => {
     const { fileId } = await attach();
     const [v] = await t.ownerQuery<{ quarantine_key: string }>('SELECT quarantine_key FROM file_versions WHERE file_id = $1', [fileId]);

@@ -67,6 +67,21 @@ describe('a dying worker does not duplicate the result', () => {
     expect(audit).toHaveLength(1);
   });
 
+  it('lets a worker whose lease was taken over finish nothing', async () => {
+    const name = `stale-${randomUUID().slice(0, 8)}`;
+    const jobId = await enqueue(nour, 'admin', { name });
+    // Worker "slow" claims the job, then stalls past its lease before starting.
+    await t.ownerQuery("SELECT * FROM app.claim_job('slow', 1, ARRAY['test.makeOrder'])");
+    await new Promise((r) => setTimeout(r, 1_200));
+    expect(await new JobWorker(t.app, [makeOrderJob], { workerId: 'fast' }).drain()).toBe(1);
+    // The slow worker wakes up and tries to run the job it no longer owns.
+    const slow = new JobWorker(t.app, [makeOrderJob], { workerId: 'slow' }) as unknown as {
+      process(id: string, kind: string, ctx: object): Promise<void>;
+    };
+    await slow.process(jobId, 'test.makeOrder', { tenantId: nour.id, membershipId: m(nour, 'admin').membershipId, sessionId: null, requestId: null });
+    expect(await ordersNamed(name)).toBe(1);
+  });
+
   it('never runs a job twice when several workers compete', async () => {
     const prefix = `race-${randomUUID().slice(0, 6)}`;
     const ids = await Promise.all(Array.from({ length: 15 }, (_, i) => enqueue(nour, 'admin', { name: `${prefix}-${i}` })));
