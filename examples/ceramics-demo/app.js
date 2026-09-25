@@ -32,7 +32,7 @@
       'c.crit': 'الأهمية', 'c.pm': 'الصيانة الوقائية', 'c.for': 'للمعدة', 'c.stock': 'الرصيد / الحد', 'c.bin': 'الموقع', 'c.site': 'الموقع', 'c.keeper': 'أمين المخزن', 'c.locations': 'أماكن التخزين',
       'c.capacity': 'السعة', 'c.areaM2': 'المساحة م²', 'c.country': 'الدولة', 'c.terms': 'شروط الدفع', 'c.rating': 'التقييم', 'c.gov': 'المحافظة', 'c.region': 'المنطقة', 'c.rep': 'المندوب',
       'c.credit': 'حد الائتمان', 'c.class': 'الفئة', 'c.dept': 'القسم', 'c.title': 'الوظيفة', 'c.shift': 'الوردية', 'c.hired': 'تاريخ التعيين', 'c.stage': 'المرحلة', 'c.standard': 'المعيار',
-      'c.source': 'مصدر العيب', 'c.planned': 'مخطط؟', 'c.days': '{n} يوم', 'c.target': 'المستهدف السنوي',
+      'c.source': 'مصدر العيب', 'c.level': 'المستوى', 'pm.unit.hours': 'ساعة', 'pm.unit.strokes': 'كبسة', 'pm.overdue': 'متأخرة', 'pm.atMeter': 'عند {n} {u}', 'c.planned': 'مخطط؟', 'c.days': '{n} يوم', 'c.target': 'المستهدف السنوي',
       // statuses
       's.active': 'نشط', 's.new': 'جديد', 's.discontinued': 'متوقف', 's.running': 'شغال', 's.maintenance': 'في الصيانة', 's.standby': 'احتياطي', 's.onLeave': 'إجازة', 's.suspended': 'موقوف',
       's.creditHold': 'موقوف ائتمانيًا', 's.inactive': 'غير نشط', 's.belowMin': 'تحت الحد', 's.ok': 'كافي', 's.critical': 'حرجة',
@@ -87,7 +87,7 @@
       'c.crit': 'Criticality', 'c.pm': 'Preventive maintenance', 'c.for': 'For', 'c.stock': 'On hand / min', 'c.bin': 'Bin', 'c.site': 'Site', 'c.keeper': 'Storekeeper', 'c.locations': 'Locations',
       'c.capacity': 'Capacity', 'c.areaM2': 'Area m²', 'c.country': 'Country', 'c.terms': 'Payment terms', 'c.rating': 'Rating', 'c.gov': 'Governorate', 'c.region': 'Region', 'c.rep': 'Sales rep',
       'c.credit': 'Credit limit', 'c.class': 'Class', 'c.dept': 'Department', 'c.title': 'Job title', 'c.shift': 'Shift', 'c.hired': 'Hired', 'c.stage': 'Stage', 'c.standard': 'Standard',
-      'c.source': 'Defect source', 'c.planned': 'Planned?', 'c.days': '{n} days', 'c.target': 'Annual target',
+      'c.source': 'Defect source', 'c.level': 'Level', 'pm.unit.hours': 'hours', 'pm.unit.strokes': 'strokes', 'pm.overdue': 'Overdue', 'pm.atMeter': 'at {n} {u}', 'c.planned': 'Planned?', 'c.days': '{n} days', 'c.target': 'Annual target',
       's.active': 'Active', 's.new': 'New', 's.discontinued': 'Discontinued', 's.running': 'Running', 's.maintenance': 'In maintenance', 's.standby': 'Standby', 's.onLeave': 'On leave', 's.suspended': 'Suspended',
       's.creditHold': 'Credit hold', 's.inactive': 'Inactive', 's.belowMin': 'Below minimum', 's.ok': 'Sufficient', 's.critical': 'Critical',
       'pm.hours': 'Every {n} running hours', 'pm.strokes': 'Every {n} strokes', 'pm.calendar': 'Every {n} days',
@@ -143,13 +143,15 @@
   }
   function L(x) { if (x == null) return ''; if (typeof x === 'string' || typeof x === 'number') return String(x); return x[state.locale] || x.ar || ''; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function nf(digits) { return new Intl.NumberFormat(state.locale === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: digits == null ? 0 : digits }); }
+  // Latin digits in Arabic too: product codes, sizes and line names already use them, and mixing both scripts on one screen reads as a bug.
+  function numLocale() { return state.locale === 'ar' ? 'ar-EG-u-nu-latn' : 'en-US'; }
+  function nf(digits) { return new Intl.NumberFormat(numLocale(), { maximumFractionDigits: digits == null ? 0 : digits }); }
   function num(n, digits) { return n == null ? '—' : nf(digits).format(n); }
-  function year(n) { return new Intl.NumberFormat(state.locale === 'ar' ? 'ar-EG' : 'en-US', { useGrouping: false }).format(n); }
+  function year(n) { return new Intl.NumberFormat(numLocale(), { useGrouping: false }).format(n); }
   function pct() { return state.locale === 'ar' ? '٪' : '%'; }
   function m2() { return state.locale === 'ar' ? 'م²' : 'm²'; }
   function money(n) { return num(n) + ' ' + t('egp'); }
-  function date(iso) { return new Date(iso + 'T00:00:00Z').toLocaleDateString(state.locale === 'ar' ? 'ar-EG' : 'en-GB', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }); }
+  function date(iso) { return new Date(iso + 'T00:00:00Z').toLocaleDateString(state.locale === 'ar' ? 'ar-EG-u-nu-latn' : 'en-GB', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }); }
   function normalize(s) {
     return String(s).toLowerCase()
       .replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
@@ -208,7 +210,7 @@
   };
   function icon(name, size) {
     size = size || 16;
-    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"' + (name === 'back' ? ' class="flip"' : '') + '>' + ICON[name] + '</svg>';
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"' + (name === 'back' || name === 'logout' ? ' class="flip"' : '') + '>' + ICON[name] + '</svg>';
   }
 
   // ================================================================ modules (the 16 departments)
@@ -455,7 +457,7 @@
       filters: [
         { key: 'dept', label: 'c.dept', options: function () { return DB.departments.map(function (d) { return [d.id, L(d.name)]; }); }, test: function (e, v) { return e.departmentId === v; } },
         { key: 'shift', label: 'c.shift', options: function () { return DB.company.shifts.map(function (s) { return [s.id, L(s.name)]; }); }, test: function (e, v) { return e.shift === v; } },
-        { key: 'level', label: 'c.class', options: function () { return ['manager', 'professional', 'supervisor', 'technician', 'worker'].map(function (k) { return [k, t('lvl.' + k)]; }); }, test: function (e, v) { return e.level === v; } },
+        { key: 'level', label: 'c.level', options: function () { return ['manager', 'professional', 'supervisor', 'technician', 'worker'].map(function (k) { return [k, t('lvl.' + k)]; }); }, test: function (e, v) { return e.level === v; } },
         { key: 'status', label: 'c.status', options: function () { return ['active', 'onLeave', 'suspended'].map(function (k) { return [k, t('s.' + k)]; }); }, test: function (e, v) { return e.status === v; } },
       ],
       columns: [
@@ -503,7 +505,7 @@
     var slice = rows.slice((st.page - 1) * PAGE_SIZE, st.page * PAGE_SIZE);
     var head = def.columns.map(function (c) {
       var active = st.sort === c.key;
-      return '<th class="sortable' + (c.end ? ' end' : '') + '" data-action="sort" data-list="' + id + '" data-key="' + c.key + '" aria-sort="' + (active ? (st.dir === 1 ? 'ascending' : 'descending') : 'none') + '">' + esc(t(c.label)) + (active ? '<span class="dir">' + (st.dir === 1 ? '▲' : '▼') + '</span>' : '') + '</th>';
+      return '<th tabindex="0" class="sortable' + (c.end ? ' end' : '') + '" data-action="sort" data-list="' + id + '" data-key="' + c.key + '" aria-sort="' + (active ? (st.dir === 1 ? 'ascending' : 'descending') : 'none') + '">' + esc(t(c.label)) + (active ? '<span class="dir">' + (st.dir === 1 ? '▲' : '▼') + '</span>' : '') + '</th>';
     }).join('');
     var body = slice.map(function (r) {
       return '<tr class="row" tabindex="0" data-action="open" data-kind="' + def.kind + '" data-id="' + esc(r.id) + '">' +
@@ -664,8 +666,8 @@
     material: function (m) {
       var used = allRecipes.filter(function (r) { return r.lines.some(function (l) { return l[0] === m.id; }); });
       var usedHtml = used.length ? '<ul class="linklist">' + used.map(function (r) {
-        var pct = r.lines.filter(function (l) { return l[0] === m.id; })[0][1];
-        return '<li>' + openLink('recipe', r.id, L(r.name) + ' v' + r.version) + '<span class="num">' + num(pct) + pct() + '</span></li>';
+        var share = r.lines.filter(function (l) { return l[0] === m.id; })[0][1];
+        return '<li>' + openLink('recipe', r.id, L(r.name) + ' v' + r.version) + '<span class="num">' + num(share) + pct() + '</span></li>';
       }).join('') + '</ul>' : '<p class="muted small">—</p>';
       var body = facts([
         [t('c.category'), esc(L(DB.materialCategories[m.category]))], [t('c.unit'), esc(unit(m.unit))],
@@ -699,17 +701,21 @@
     asset: function (a) {
       var parts = DB.spareParts.filter(function (p) { return p.assetType === a.type; });
       var generic = DB.spareParts.filter(function (p) { return p.assetType === '*'; }).length;
-      var next = a.pmBasis === 'calendar'
-        ? date(new Date(Date.parse(a.lastPm + 'T00:00:00Z') + a.pmInterval * 864e5).toISOString().slice(0, 10))
-        : num(Math.ceil((a.meter + 1) / a.pmInterval) * a.pmInterval);
+      var next;
+      if (a.pmBasis === 'calendar') {
+        var due = new Date(Date.parse(a.lastPm + 'T00:00:00Z') + a.pmInterval * 864e5).toISOString().slice(0, 10);
+        next = esc(date(due)) + (due < DB.referenceDate ? ' <span class="chip bad">' + esc(t('pm.overdue')) + '</span>' : '');
+      } else {
+        next = esc(t('pm.atMeter', { n: num(Math.ceil((a.meter + 1) / a.pmInterval) * a.pmInterval), u: t('pm.unit.' + a.pmBasis) }));
+      }
       var body = facts([
         [t('c.area'), esc(L(DB.areas[a.area]))], [t('c.maker'), '<span dir="ltr">' + esc(a.maker + ' ' + a.model) + '</span>'],
         [t('c.year'), year(a.year)], [t('c.crit'), esc(a.criticality)],
         a.lengthM ? [L(b('طول الفرن', 'Kiln length')), num(a.lengthM) + (state.locale === 'ar' ? ' م' : ' m')] : null,
       ]) + block(t('d.pmPlan'), facts([
         [t('c.pm'), esc(t('pm.' + a.pmBasis, { n: num(a.pmInterval) }))],
-        a.meter != null ? [t('d.meter'), num(a.meter)] : null,
-        [t('d.lastPm'), esc(date(a.lastPm))], [t('d.nextPm'), esc(next)],
+        a.meter != null ? [t('d.meter'), num(a.meter) + ' ' + esc(t('pm.unit.' + a.pmBasis))] : null,
+        [t('d.lastPm'), esc(date(a.lastPm))], [t('d.nextPm'), next],
       ])) + block(t('d.parts') + ' (' + num(parts.length) + ')', parts.length ? '<ul class="linklist">' + parts.slice(0, 14).map(function (p) {
         return '<li>' + openLink('part', p.id, L(p.name)) + '<span class="num">' + num(p.onHand) + ' / ' + num(p.minStock) + '</span></li>';
       }).join('') + '</ul><p class="muted small">' + esc(t('d.genericParts', { n: num(generic) })) + '</p>' : '<p class="muted small">' + esc(t('d.genericParts', { n: num(generic) })) + '</p>');
@@ -765,7 +771,7 @@
       var years = (Date.parse(DB.referenceDate) - Date.parse(e.hireDate)) / (365.25 * 864e5);
       var repDealers = DB.dealers.filter(function (d) { return d.repId === e.id; });
       var body = facts([
-        [t('c.dept'), esc(L(by.departments[e.departmentId].name))], [t('c.title'), esc(L(e.title))], [t('c.class'), esc(t('lvl.' + e.level))],
+        [t('c.dept'), esc(L(by.departments[e.departmentId].name))], [t('c.title'), esc(L(e.title))], [t('c.level'), esc(t('lvl.' + e.level))],
         [t('c.shift'), esc(L(DB.company.shifts.filter(function (s) { return s.id === e.shift; })[0].name)) + (e.line ? ' · ' + esc(L(LINE[e.line].name)) : '')],
         [t('c.hired'), esc(date(e.hireDate))], [t('d.tenure'), esc(t('d.years', { n: num(years, 1) }))],
         e.region ? [t('c.region'), esc(L(DB.regions[e.region]))] : null,
@@ -826,7 +832,7 @@
       '</aside>' +
       '<div class="main">' +
         '<header class="topbar">' +
-          '<div class="start"><button class="icon-btn menu-btn" data-action="menu" aria-label="' + esc(t('menu')) + '">' + icon('menu', 18) + '</button><span class="crumb">' + esc(L(DB.company.name)) + ' / <b>' + esc(pageTitle(state.page)) + '</b></span></div>' +
+          '<div class="start"><button class="icon-btn menu-btn" data-action="menu" aria-label="' + esc(t('menu')) + '">' + icon('menu', 18) + '</button><span class="crumb"><span class="co">' + esc(L(DB.company.name)) + ' / </span><b>' + esc(pageTitle(state.page)) + '</b></span></div>' +
           '<div class="end">' + themeButton() + langButton() +
             '<span class="user"><span class="avatar">' + esc(initials) + '</span><span class="who">' + esc(L(currentUser.name)) + '<small>' + esc(L(currentUser.title)) + '</small></span></span>' +
             '<button class="icon-btn" data-action="signOut" aria-label="' + esc(t('signOut')) + '" title="' + esc(t('signOut')) + '">' + icon('logout', 16) + '</button>' +
@@ -858,9 +864,12 @@
     document.title = L(DB.company.name) + ' — ' + (state.signedIn ? pageTitle(state.page) : t('login.title'));
     var y = window.scrollY;
     root.innerHTML = state.signedIn ? renderShell() : renderLogin();
+    syncBodyLock();
     if (keepScroll) window.scrollTo(0, y);
   }
+  function syncBodyLock() { document.body.classList.toggle('locked', state.drawer.length > 0 || state.navOpen); }
   function rerenderDrawer() {
+    syncBodyLock();
     var old = document.querySelectorAll('.drawer, .drawer-scrim');
     old.forEach(function (n) { n.remove(); });
     var html = renderDrawer();
@@ -928,7 +937,23 @@
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && state.drawer.length) { ACTIONS.closeDrawer(); return; }
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('tr[data-action="open"]')) { e.preventDefault(); ACTIONS.open(e.target); }
+    if (e.key === 'Escape' && state.navOpen) { ACTIONS.menu(); return; }
+    if (e.key === 'Tab' && state.drawer.length) {
+      var drawer = document.querySelector('.drawer');
+      var focusables = drawer ? drawer.querySelectorAll('button, [href], input, select, [tabindex]:not([tabindex="-1"])') : [];
+      if (focusables.length) {
+        var first = focusables[0], last = focusables[focusables.length - 1];
+        if (!drawer.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+        else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+      return;
+    }
+    // Rows and sortable headers act like buttons from the keyboard.
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('tr[data-action], th[data-action]')) {
+      e.preventDefault();
+      ACTIONS[e.target.getAttribute('data-action')](e.target, e);
+    }
   });
   document.addEventListener('input', function (e) {
     var id = e.target.getAttribute && e.target.getAttribute('data-search');
