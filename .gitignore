@@ -4,3 +4,5 @@ dist/
 .env
 coverage/
 apps/business-web/dist/
+.local/
+data/

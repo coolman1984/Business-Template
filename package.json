@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "local": "tsx scripts/local.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p apps/business-web/tsconfig.json",
     "test": "vitest run",
     "db:bootstrap": "tsx scripts/bootstrap.ts",
@@ -28,6 +29,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "embedded-postgres": "16.14.0-beta.17",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3",
     "vite": "^8.3.1",

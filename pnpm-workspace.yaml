@@ -1,3 +1,11 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Only these packages may run install scripts. @embedded-postgres/*: recreates the symlinks inside its
+# own bundled PostgreSQL binaries (used by `pnpm local`, development only).
+onlyBuiltDependencies:
+  - "@embedded-postgres/darwin-arm64"
+  - "@embedded-postgres/darwin-x64"
+  - "@embedded-postgres/linux-arm64"
+  - "@embedded-postgres/linux-x64"
