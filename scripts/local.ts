@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import EmbeddedPostgres from 'embedded-postgres';
 import { bootstrapDatabase, migrate } from './db-tools.js';
-import { seedTenants } from './fixtures.js';
+import { seedTenants, syncRoleTemplates } from './fixtures.js';
 
 const root = join(import.meta.dirname, '..');
 const stateDir = join(root, '.local');
@@ -110,7 +110,10 @@ async function main(): Promise<void> {
   if (applied.length) console.log(`  applied ${applied.length} migration(s)`);
 
   const loginsFile = join(stateDir, 'demo-logins.txt');
-  if (!existsSync(loginsFile)) {
+  if (existsSync(loginsFile)) {
+    const added = await syncRoleTemplates(ownerUrl);
+    if (added) console.log(`  gave the demo roles ${added} new permission(s) from this version`);
+  } else {
     console.log('▶ Creating synthetic demo companies…');
     const tenants = await seedTenants(ownerUrl);
     const lines = ['Demo sign-ins (synthetic data, local only)', ''];

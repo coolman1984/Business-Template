@@ -1,3 +1,4 @@
+import { inventoryCapabilities, inventoryCommands } from '@factory/engine-inventory';
 import { orderAttachmentTarget, orderCommands, ordersCapabilities } from '@factory/engine-orders';
 import {
   AttachmentTargets,
@@ -25,15 +26,15 @@ const attachmentTargets = new AttachmentTargets([orderAttachmentTarget]);
 
 export const recipe = {
   code: 'inventory-orders',
-  version: '0.2.0',
-  capabilities: [platformCapabilities, jobCapabilities, fileCapabilities, ordersCapabilities] as readonly CapabilityManifest[],
+  version: '0.3.0',
+  capabilities: [platformCapabilities, jobCapabilities, fileCapabilities, ordersCapabilities, inventoryCapabilities] as readonly CapabilityManifest[],
   attachmentTargets,
-  commands: [...orderCommands, ...fileCommands(attachmentTargets), ...jobCommands] as readonly CommandDefinition<any, any, any>[],
+  commands: [...orderCommands, ...inventoryCommands, ...fileCommands(attachmentTargets), ...jobCommands] as readonly CommandDefinition<any, any, any>[],
   roleTemplates: [
     {
       code: 'company_admin',
       name: 'مدير الشركة',
-      description: 'إدارة المستخدمين والصلاحيات وكل الطلبات',
+      description: 'إدارة المستخدمين والصلاحيات وكل الطلبات والمخزون',
       permissions: [
         ['permissions', 'view'],
         ['permissions', 'manage'],
@@ -50,12 +51,18 @@ export const recipe = {
         ['attachments', 'upload'],
         ['attachments', 'delete'],
         ['attachments', 'restore'],
+        ['inventory_setup', 'manage'],
+        ['stock', 'view'],
+        ['stock', 'prepare'],
+        ['stock', 'post'],
+        ['stock', 'reverse'],
+        ['stock', 'import'],
       ],
     },
     {
       code: 'branch_manager',
       name: 'مدير فرع',
-      description: 'كل عمليات الطلبات والمرفقات داخل فروعه، بما فيها الاعتماد والاسترجاع',
+      description: 'كل عمليات الطلبات والمرفقات والمخزون داخل فروعه، بما فيها الاعتماد والاسترجاع',
       permissions: [
         ['orders', 'view'],
         ['orders', 'create'],
@@ -67,18 +74,25 @@ export const recipe = {
         ['attachments', 'upload'],
         ['attachments', 'delete'],
         ['attachments', 'restore'],
+        ['stock', 'view'],
+        ['stock', 'prepare'],
+        ['stock', 'post'],
+        ['stock', 'reverse'],
+        ['stock', 'import'],
       ],
     },
     {
       code: 'storekeeper',
       name: 'أمين مخزن',
-      description: 'إنشاء الطلبات وتعديل المسودات ورفع المرفقات دون اعتماد',
+      description: 'تجهيز الطلبات ومستندات الاستلام والصرف ورفع المرفقات، دون اعتماد',
       permissions: [
         ['orders', 'view'],
         ['orders', 'create'],
         ['orders', 'update'],
         ['attachments', 'view'],
         ['attachments', 'upload'],
+        ['stock', 'view'],
+        ['stock', 'prepare'],
       ],
     },
     {
@@ -90,6 +104,7 @@ export const recipe = {
         ['attachments', 'view'],
         ['permissions', 'view'],
         ['memberships', 'view'],
+        ['stock', 'view'],
       ],
     },
   ] satisfies RoleTemplate[],

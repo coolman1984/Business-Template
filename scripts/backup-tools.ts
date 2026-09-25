@@ -31,6 +31,7 @@ export interface BackupManifest {
 const COUNTED_TABLES = [
   'tenants', 'legal_entities', 'branches', 'users', 'memberships', 'roles', 'role_permissions', 'role_assignments',
   'permission_grants', 'orders', 'file_assets', 'file_versions', 'file_links', 'audit_events', 'audit_archive', 'jobs',
+  'inventory_items', 'warehouses', 'stock_documents', 'stock_document_lines', 'stock_movements', 'stock_balances', 'stock_imports',
 ];
 
 async function sha256File(path: string): Promise<string> {

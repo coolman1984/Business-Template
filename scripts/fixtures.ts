@@ -218,3 +218,44 @@ export async function seedTenants(
   }
   return out;
 }
+
+/**
+ * Local development only: adds permissions that newer role templates carry to the matching roles of
+ * existing companies (roles are matched by template code). Never removes anything.
+ */
+export async function syncRoleTemplates(ownerUrl: string, roleTemplates: readonly RoleTemplate[] = recipe.roleTemplates): Promise<number> {
+  const client = new pg.Client({ connectionString: ownerUrl });
+  await client.connect();
+  let added = 0;
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('app.operation_id', $1, true)", [randomUUID()]);
+    for (const t of roleTemplates) {
+      for (const [resource, action] of t.permissions) {
+        const res = await client.query(
+          `INSERT INTO role_permissions (tenant_id, role_id, resource, action)
+           SELECT r.tenant_id, r.id, $2, $3 FROM roles r WHERE r.code = $1
+           ON CONFLICT DO NOTHING`,
+          [t.code, resource, action],
+        );
+        added += res.rowCount ?? 0;
+      }
+    }
+    if (added > 0) {
+      // Open screens must notice the change, as with any policy change.
+      await client.query(
+        `UPDATE memberships m SET policy_version = policy_version + 1
+         WHERE EXISTS (SELECT 1 FROM role_assignments a JOIN roles r ON r.id = a.role_id
+                       WHERE a.membership_id = m.id AND r.code = ANY($1))`,
+        [roleTemplates.map((t) => t.code)],
+      );
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    await client.end();
+  }
+  return added;
+}

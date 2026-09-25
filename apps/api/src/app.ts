@@ -3,6 +3,16 @@ import { existsSync } from 'node:fs';
 import type { Readable } from 'node:stream';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
+import {
+  getDocument,
+  itemLedger,
+  listDocuments,
+  listImports,
+  listItems,
+  listWarehouses,
+  stageOpeningRows,
+  stockBalances,
+} from '@factory/engine-inventory';
 import { listDeletedOrders, listOrders } from '@factory/engine-orders';
 import {
   BusinessError,
@@ -24,6 +34,7 @@ import {
   listRoles,
   openDownload,
   quarantineKey,
+  readSpreadsheet,
   resolveContext,
   selectMembership,
   simulateAccess,
@@ -44,6 +55,14 @@ export interface AppDeps {
   /** Built web app to serve (on-premise installs serve everything from one address). */
   webRoot?: string;
   logger?: boolean;
+}
+
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+
+async function streamToBuffer(stream: Readable): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(chunk as Buffer);
+  return Buffer.concat(chunks);
 }
 
 const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -221,6 +240,78 @@ export function buildApp({ db, identity, authHandler, publicUrl, storage, webRoo
     const items = [...(await listDeletedOrders(db, ctx)), ...(await listDeletedFiles(db, ctx, targets))];
     items.sort((a, b) => new Date(b.deletedAt!).getTime() - new Date(a.deletedAt!).getTime());
     return { items };
+  });
+
+  // ───── Inventory ─────
+  app.get('/inventory/items', async (request) => ({ items: await listItems(db, await contextOf(request)) }));
+  app.get('/inventory/warehouses', async (request) => ({ warehouses: await listWarehouses(db, await contextOf(request)) }));
+  app.get('/inventory/documents', async (request) => ({ documents: await listDocuments(db, await contextOf(request)) }));
+  app.get<{ Params: { id: string } }>('/inventory/documents/:id', async (request) => {
+    if (!uuidRe.test(request.params.id)) throw new ValidationError({ id: 'invalid' });
+    return getDocument(db, await contextOf(request), request.params.id);
+  });
+  app.get<{ Querystring: { warehouseId?: string } }>('/inventory/balances', async (request) => {
+    const { warehouseId } = request.query;
+    if (warehouseId !== undefined && !uuidRe.test(warehouseId)) throw new ValidationError({ warehouseId: 'invalid' });
+    return { balances: await stockBalances(db, await contextOf(request), { warehouseId }) };
+  });
+  app.get<{ Querystring: { warehouseId?: string; itemId?: string } }>('/inventory/ledger', async (request) => {
+    const { warehouseId = '', itemId = '' } = request.query;
+    if (!uuidRe.test(warehouseId) || !uuidRe.test(itemId)) throw new ValidationError({ query: 'warehouseId and itemId are required' });
+    return { movements: await itemLedger(db, await contextOf(request), warehouseId, itemId) };
+  });
+  app.get('/inventory/imports', async (request) => ({ imports: await listImports(db, await contextOf(request)) }));
+  app.get<{ Params: { id: string } }>('/inventory/imports/:id', async (request) => {
+    if (!uuidRe.test(request.params.id)) throw new ValidationError({ id: 'invalid' });
+    const [run] = await listImports(db, await contextOf(request), request.params.id);
+    if (!run) throw new BusinessError('not_found', 'Import not found.', 404);
+    return run;
+  });
+  app.get('/inventory/import-template.csv', async (_request, reply) =>
+    reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent('قالب-أرصدة-افتتاحية.csv')}`)
+      .send('\uFEFFكود الصنف,الكمية\n'),
+  );
+  // The file is kept as the import's original; its rows are staged, never applied until confirmed.
+  app.post<{ Querystring: { warehouseId?: string } }>('/inventory/imports', async (request) => {
+    const ctx = await contextOf(request);
+    const warehouseId = request.query.warehouseId ?? '';
+    if (!uuidRe.test(warehouseId)) throw new ValidationError({ warehouseId: 'invalid' });
+    let fileName = '';
+    try {
+      const raw = request.headers['x-file-name'];
+      if (typeof raw === 'string') fileName = decodeURIComponent(raw).replace(/[\\/\u0000-\u001f]/g, '_').slice(0, 255);
+    } catch {
+      throw new ValidationError({ fileName: 'x-file-name must be URI-encoded' });
+    }
+    if (!fileName) throw new ValidationError({ fileName: 'x-file-name header is required' });
+    if (Number(request.headers['content-length'] ?? 0) > MAX_IMPORT_BYTES) throw new BusinessError('file_too_large', 'Import files are limited to 5 MB.', 413);
+    const key = `imports/${ctx.tenantId}/${randomUUID()}`;
+    let stored;
+    try {
+      stored = await storage.put(key, request.body as Readable, MAX_IMPORT_BYTES);
+    } catch (error) {
+      if (error instanceof FileTooLargeError) throw new BusinessError('file_too_large', 'Import files are limited to 5 MB.', 413);
+      throw error;
+    }
+    try {
+      const bytes = await streamToBuffer(await storage.get(key));
+      const rows = stageOpeningRows(readSpreadsheet(bytes, fileName));
+      const idempotencyKey = request.headers['idempotency-key'];
+      const out = await dispatcher.dispatch<{ importId: string }>(
+        ctx,
+        'stock.import_stage',
+        { warehouseId, fileName, fileHash: stored.sha256, sizeBytes: stored.size, storageKey: key, rows },
+        { idempotencyKey: typeof idempotencyKey === 'string' ? idempotencyKey : '', fingerprint: { warehouseId, fileHash: stored.sha256 } },
+      );
+      if (out.replayed) await storage.delete(key);
+      const [run] = await listImports(db, ctx, out.result.importId);
+      return run;
+    } catch (error) {
+      await storage.delete(key);
+      throw error;
+    }
   });
 
   app.get('/permissions/catalog', async (request) => {

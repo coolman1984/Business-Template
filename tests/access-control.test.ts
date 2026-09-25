@@ -137,7 +137,16 @@ describe('roles', () => {
     const me = (await h.get(m(nour, 'storekeeper'), '/me')).json();
     const caps = Object.fromEntries(me.capabilities.map((c: { resource: string; action: string; branchIds: string[] }) => [`${c.resource}.${c.action}`, c.branchIds]));
     const cai = [nour.branches.CAI];
-    expect(caps).toEqual({ 'orders.view': cai, 'orders.create': cai, 'orders.update': cai, 'attachments.view': cai, 'attachments.upload': cai });
+    expect(caps).toEqual({
+      'orders.view': cai,
+      'orders.create': cai,
+      'orders.update': cai,
+      'attachments.view': cai,
+      'attachments.upload': cai,
+      // Storekeepers prepare stock documents; posting them is someone else's job.
+      'stock.view': cai,
+      'stock.prepare': cai,
+    });
   });
 
   it('applies a role change to everyone holding the role, and rejects stale role edits', async () => {

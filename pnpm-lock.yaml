@@ -66,6 +66,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@factory/engine-inventory':
+        specifier: workspace:*
+        version: link:../../packages/engine-inventory
       '@factory/engine-orders':
         specifier: workspace:*
         version: link:../../packages/engine-orders
@@ -78,6 +81,12 @@ importers:
 
   apps/business-web: {}
 
+  packages/engine-inventory:
+    dependencies:
+      '@factory/platform-core':
+        specifier: workspace:*
+        version: link:../platform-core
+
   packages/engine-orders:
     dependencies:
       '@factory/platform-core':
@@ -88,6 +97,9 @@ importers:
 
   packages/recipe-inventory-orders:
     dependencies:
+      '@factory/engine-inventory':
+        specifier: workspace:*
+        version: link:../engine-inventory
       '@factory/engine-orders':
         specifier: workspace:*
         version: link:../engine-orders

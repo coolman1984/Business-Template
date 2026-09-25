@@ -178,7 +178,7 @@ export interface RowChangesTable {
   changed_at: Timestamp;
 }
 
-export interface Database extends CoreDatabase, PhaseTwoTables {
+export interface Database extends CoreDatabase, PhaseTwoTables, InventoryTables {
   roles: RolesTable;
   role_permissions: RolePermissionsTable;
   role_assignments: RoleAssignmentsTable;
@@ -267,4 +267,123 @@ export interface PhaseTwoTables {
   file_versions: FileVersionsTable;
   file_links: FileLinksTable;
   access_log: AccessLogTable;
+}
+
+// Owned by packages/engine-inventory (declared here so every engine shares one typed connection).
+type Quantity = ColumnType<string, string | number, string | number>;
+type NullableTimestamp = ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
+
+export interface InventoryItemsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  code: string;
+  name: string;
+  unit: string;
+  active: Generated<boolean>;
+  version: Generated<number>;
+  created_at: Timestamp;
+  created_by: string;
+  updated_at: Timestamp;
+  updated_by: string;
+}
+
+export interface WarehousesTable {
+  tenant_id: string;
+  id: Generated<string>;
+  legal_entity_id: string;
+  branch_id: string;
+  code: string;
+  name: string;
+  active: Generated<boolean>;
+  version: Generated<number>;
+  created_at: Timestamp;
+  created_by: string;
+  updated_at: Timestamp;
+  updated_by: string;
+}
+
+export interface StockDocumentsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  legal_entity_id: string;
+  branch_id: string;
+  warehouse_id: string;
+  doc_type: 'opening' | 'receipt' | 'issue' | 'reversal';
+  direction: 1 | -1;
+  status: Generated<'draft' | 'posted' | 'cancelled'>;
+  document_number: string | null;
+  reference: string | null;
+  notes: string | null;
+  reverses_document_id: string | null;
+  source_import_id: string | null;
+  cancel_reason: string | null;
+  posted_at: NullableTimestamp;
+  posted_by: string | null;
+  version: Generated<number>;
+  created_at: Timestamp;
+  created_by: string;
+  updated_at: Timestamp;
+  updated_by: string;
+}
+
+export interface StockDocumentLinesTable {
+  tenant_id: string;
+  id: Generated<string>;
+  document_id: string;
+  line_no: number;
+  item_id: string;
+  quantity: Quantity;
+}
+
+export interface StockMovementsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  document_id: string;
+  line_id: string;
+  warehouse_id: string;
+  item_id: string;
+  quantity: Quantity;
+  posted_at: Timestamp;
+}
+
+export interface StockBalancesTable {
+  tenant_id: string;
+  id: Generated<string>;
+  warehouse_id: string;
+  item_id: string;
+  on_hand: ColumnType<string, string | number | undefined, string | number>;
+  last_movement_at: NullableTimestamp;
+}
+
+export interface StockImportsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  legal_entity_id: string;
+  branch_id: string;
+  warehouse_id: string;
+  file_name: string;
+  file_hash: string;
+  size_bytes: ColumnType<string, number, never>;
+  storage_key: string;
+  status: Generated<'awaiting_confirmation' | 'committed' | 'cancelled'>;
+  total_rows: number;
+  valid_rows: number;
+  invalid_rows: number;
+  rows: ColumnType<unknown, string, never>;
+  document_id: string | null;
+  version: Generated<number>;
+  created_at: Timestamp;
+  created_by: string;
+  decided_at: NullableTimestamp;
+  decided_by: string | null;
+}
+
+export interface InventoryTables {
+  inventory_items: InventoryItemsTable;
+  warehouses: WarehousesTable;
+  stock_documents: StockDocumentsTable;
+  stock_document_lines: StockDocumentLinesTable;
+  stock_movements: StockMovementsTable;
+  stock_balances: StockBalancesTable;
+  stock_imports: StockImportsTable;
 }
