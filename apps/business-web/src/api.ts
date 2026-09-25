@@ -11,12 +11,12 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, url: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
+async function request<T>(method: string, url: string, body?: unknown, headers: Record<string, string> = {}, raw?: Blob): Promise<T> {
   const res = await fetch(url, {
     method,
     credentials: 'same-origin',
     headers: body === undefined ? headers : { 'content-type': 'application/json', ...headers },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: raw ?? (body === undefined ? undefined : JSON.stringify(body)),
   });
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
@@ -58,6 +58,16 @@ export function runCommand<T>(me: Me, name: string, input: unknown, idempotencyK
   });
 }
 
+/** Sends a file's bytes as-is; the server quarantines them and queues a scan before anyone can download. */
+export function uploadFile(me: Me, url: string, file: File, idempotencyKey = crypto.randomUUID()) {
+  return request<{ operationId: string; result: { fileId: string; versionId: string; jobId: string }; replayed: boolean }>('POST', url, undefined, {
+    'content-type': 'application/octet-stream',
+    'x-file-name': encodeURIComponent(file.name),
+    'idempotency-key': idempotencyKey,
+    'x-policy-version': me.policyVersion,
+  }, file);
+}
+
 const messages: Record<string, string> = {
   forbidden: 'ليست لديك صلاحية لهذه العملية.',
   delegation_ceiling: 'لا يمكنك منح صلاحية لا تملكها أنت في هذا النطاق.',
@@ -67,6 +77,13 @@ const messages: Record<string, string> = {
   last_administrator: 'هذا التغيير سيترك الشركة بلا مدير صلاحيات.',
   invalid_input: 'البيانات غير مكتملة أو غير صحيحة.',
   not_found: 'العنصر غير موجود.',
+  file_too_large: 'الملف أكبر من الحد المسموح (٢٥ ميجا).',
+  not_deletable: 'الطلب المعتمد لا يُحذف؛ يمكن إلغاؤه فقط.',
+  already_deleted: 'العنصر موجود في سلة المحذوفات بالفعل.',
+  not_deleted: 'العنصر ليس في سلة المحذوفات.',
+  parent_deleted: 'استرجع الطلب صاحب هذا الملف أولًا.',
+  not_failed: 'لا يُعاد إلا المهام المتعثرة.',
+  not_cancellable: 'لا تُلغى إلا المهام المنتظرة أو المتعثرة.',
   INVALID_EMAIL_OR_PASSWORD: 'البريد أو كلمة المرور غير صحيحة.',
 };
 

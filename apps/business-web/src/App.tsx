@@ -3,13 +3,15 @@ import { ApiError, can, get, post, type Me } from './api';
 import { ChooseCompany } from './pages/ChooseCompany';
 import { Login } from './pages/Login';
 import { Orders } from './pages/Orders';
+import { Jobs } from './pages/Jobs';
 import { Permissions } from './pages/Permissions';
+import { RecycleBin } from './pages/RecycleBin';
 
 type Stage = { kind: 'loading' } | { kind: 'signed-out' } | { kind: 'choose' } | { kind: 'ready'; me: Me };
 
 export function App() {
   const [stage, setStage] = useState<Stage>({ kind: 'loading' });
-  const [page, setPage] = useState<'orders' | 'permissions'>('orders');
+  const [page, setPage] = useState<'orders' | 'recycle' | 'jobs' | 'permissions'>('orders');
 
   const refresh = useCallback(async () => {
     try {
@@ -35,6 +37,14 @@ export function App() {
 
   const { me } = stage;
   const canSeePermissions = can(me, 'permissions', 'view');
+  const canSeeRecycle = can(me, 'orders', 'restore') || can(me, 'attachments', 'restore');
+  const tabs = [
+    { key: 'orders', label: 'الطلبات', show: true },
+    { key: 'recycle', label: 'سلة المحذوفات', show: canSeeRecycle },
+    { key: 'jobs', label: 'المهام', show: true },
+    { key: 'permissions', label: 'الصلاحيات', show: canSeePermissions },
+  ] as const;
+  const current = tabs.find((t) => t.key === page && t.show)?.key ?? 'orders';
   return (
     <div className="shell">
       <header className="topbar">
@@ -43,14 +53,11 @@ export function App() {
           <strong>{me.tenant.name}</strong>
         </div>
         <nav>
-          <button className={page === 'orders' ? 'tab active' : 'tab'} onClick={() => setPage('orders')}>
-            الطلبات
-          </button>
-          {canSeePermissions && (
-            <button className={page === 'permissions' ? 'tab active' : 'tab'} onClick={() => setPage('permissions')}>
-              الصلاحيات
+          {tabs.filter((t) => t.show).map((t) => (
+            <button key={t.key} className={current === t.key ? 'tab active' : 'tab'} onClick={() => setPage(t.key)}>
+              {t.label}
             </button>
-          )}
+          ))}
         </nav>
         <div className="who">
           <span>{me.membership.displayName}</span>
@@ -59,7 +66,15 @@ export function App() {
         </div>
       </header>
       <main className="content">
-        {page === 'permissions' && canSeePermissions ? <Permissions me={me} onPolicyChanged={refresh} /> : <Orders me={me} onPolicyChanged={refresh} />}
+        {current === 'permissions' ? (
+          <Permissions me={me} onPolicyChanged={refresh} />
+        ) : current === 'recycle' ? (
+          <RecycleBin me={me} onPolicyChanged={refresh} />
+        ) : current === 'jobs' ? (
+          <Jobs me={me} onPolicyChanged={refresh} />
+        ) : (
+          <Orders me={me} onPolicyChanged={refresh} />
+        )}
       </main>
     </div>
   );

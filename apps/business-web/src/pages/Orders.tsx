@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ApiError, can, describeError, get, runCommand, type Me } from '../api';
+import { ReasonDialog } from '../components/ReasonDialog';
+import { OrderFiles } from './OrderFiles';
 
 interface Order {
   id: string;
@@ -18,6 +20,8 @@ export function Orders({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =>
   const createBranches = me.branches.filter((b) => can(me, 'orders', 'create', b.id));
   const [branchId, setBranchId] = useState(createBranches[0]?.id ?? '');
   const [customer, setCustomer] = useState('');
+  const [openFiles, setOpenFiles] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Order | null>(null);
   const branchName = (id: string) => me.branches.find((b) => b.id === id)?.name ?? '—';
 
   const load = useCallback(() => {
@@ -52,6 +56,18 @@ export function Orders({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =>
     }
   };
 
+  const remove = async (o: Order, reason: string) => {
+    setDeleting(null);
+    try {
+      await runCommand(me, 'orders.delete', { orderId: o.id, expectedVersion: o.version, reason });
+      setMessage({ kind: 'ok', text: `نُقل الطلب ${o.orderNumber} إلى سلة المحذوفات، ويمكن استرجاعه من هناك.` });
+      if (openFiles === o.id) setOpenFiles(null);
+      load();
+    } catch (err) {
+      fail(err);
+    }
+  };
+
   return (
     <section>
       <h1>الطلبات</h1>
@@ -73,7 +89,7 @@ export function Orders({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =>
           <button className="primary">إنشاء طلب</button>
         </form>
       )}
-      <div className="card">
+      <div className="card scroll">
         {orders.length === 0 ? (
           <p className="muted">لا توجد طلبات تستطيع مشاهدتها.</p>
         ) : (
@@ -89,22 +105,44 @@ export function Orders({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () =>
             </thead>
             <tbody>
               {orders.map((o) => (
-                <tr key={o.id}>
+                <Fragment key={o.id}>
+                <tr>
                   <td dir="ltr" className="mono">{o.orderNumber}</td>
                   <td>{branchName(o.branchId)}</td>
                   <td>{o.customerName}</td>
                   <td><span className={`badge ${o.status}`}>{statusLabel[o.status]}</span></td>
                   <td>
+                    <div className="actions">
                     {o.status === 'draft' && can(me, 'orders', 'submit', o.branchId) && (
                       <button onClick={() => submit(o)}>اعتماد</button>
                     )}
+                    {can(me, 'attachments', 'view', o.branchId) && (
+                      <button className="link" aria-expanded={openFiles === o.id} onClick={() => setOpenFiles(openFiles === o.id ? null : o.id)}>
+                        المرفقات
+                      </button>
+                    )}
+                    {o.status === 'draft' && can(me, 'orders', 'delete', o.branchId) && (
+                      <button className="danger" onClick={() => setDeleting(o)}>حذف</button>
+                    )}
+                  </div>
                   </td>
                 </tr>
+                {openFiles === o.id && (
+                  <tr className="expanded">
+                    <td colSpan={5}>
+                      <OrderFiles me={me} orderId={o.id} branchId={o.branchId} onPolicyChanged={onPolicyChanged} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
         )}
       </div>
+      {deleting && (
+        <ReasonDialog title={`نقل الطلب ${deleting.orderNumber} إلى سلة المحذوفات`} confirmLabel="نقل للسلة" danger onConfirm={(r) => remove(deleting, r)} onCancel={() => setDeleting(null)} />
+      )}
     </section>
   );
 }
