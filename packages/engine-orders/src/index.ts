@@ -6,6 +6,7 @@ import {
   loadSubject,
   nextDocumentNumber,
   withTenantTransaction,
+  type CapabilityManifest,
   type CommandDefinition,
   type Db,
   type RequestContext,
@@ -13,6 +14,23 @@ import {
 } from '@factory/platform-core';
 
 export const ORDERS = 'orders';
+
+export const ordersCapabilities: CapabilityManifest = {
+  module: 'engine-orders',
+  resources: [
+    {
+      key: ORDERS,
+      label: { ar: 'الطلبات', en: 'Orders' },
+      scope: 'branch',
+      actions: [
+        { key: 'view', label: { ar: 'مشاهدة', en: 'View' } },
+        { key: 'create', label: { ar: 'إنشاء', en: 'Create' } },
+        { key: 'update', label: { ar: 'تعديل مسودة', en: 'Edit draft' } },
+        { key: 'submit', label: { ar: 'اعتماد وإرسال', en: 'Submit' }, sensitive: true },
+      ],
+    },
+  ],
+};
 const uuidPattern = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 
 export interface OrderView {
@@ -49,6 +67,7 @@ interface CreateInput {
 
 export const createOrder: CommandDefinition<CreateInput, { legalEntityId: string; timeZone: string }, OrderView> = {
   name: 'orders.create',
+  requires: [{ resource: ORDERS, action: 'create' }],
   inputSchema: {
     type: 'object',
     additionalProperties: false,
@@ -127,6 +146,7 @@ type LockedOrder = Awaited<ReturnType<typeof lockOrder>>;
 
 export const updateOrder: CommandDefinition<UpdateInput, LockedOrder, OrderView> = {
   name: 'orders.update',
+  requires: [{ resource: ORDERS, action: 'update' }],
   inputSchema: {
     type: 'object',
     additionalProperties: false,
@@ -175,6 +195,7 @@ interface SubmitInput {
 
 export const submitOrder: CommandDefinition<SubmitInput, LockedOrder, OrderView> = {
   name: 'orders.submit',
+  requires: [{ resource: ORDERS, action: 'submit' }],
   inputSchema: {
     type: 'object',
     additionalProperties: false,

@@ -1,33 +1,63 @@
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
-import { listOrders, orderCommands } from '@factory/engine-orders';
+import { listOrders } from '@factory/engine-orders';
 import {
   BusinessError,
+  CapabilityRegistry,
   CommandDispatcher,
+  ForbiddenError,
   UnauthenticatedError,
-  grantPermission,
-  revokePermission,
+  ValidationError,
+  accessControlCommands,
+  describeAccess,
+  describeMe,
+  listMembers,
+  listMembershipsFor,
+  listRoles,
+  resolveContext,
+  selectMembership,
+  simulateAccess,
   type Db,
   type IdentityPort,
   type RequestContext,
 } from '@factory/platform-core';
+import { recipe } from '@factory/recipe-inventory-orders';
 
 export interface AppDeps {
   db: Db;
   identity: IdentityPort;
+  /** The identity library's HTTP handler, mounted under /api/auth. */
+  authHandler: (request: Request) => Promise<Response>;
+  publicUrl: string;
   logger?: boolean;
 }
 
-export function buildApp({ db, identity, logger = false }: AppDeps): FastifyInstance {
+const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function toHeaders(request: FastifyRequest): Headers {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(request.headers)) {
+    if (Array.isArray(value)) value.forEach((v) => headers.append(key, v));
+    else if (value !== undefined) headers.set(key, String(value));
+  }
+  return headers;
+}
+
+export function buildApp({ db, identity, authHandler, publicUrl, logger = false }: AppDeps): FastifyInstance {
   const app = Fastify({ logger, genReqId: () => randomUUID(), bodyLimit: 256 * 1024 });
-  const dispatcher = new CommandDispatcher(db).register(...orderCommands, grantPermission, revokePermission);
+  const registry = new CapabilityRegistry(recipe.capabilities);
+  const dispatcher = new CommandDispatcher(db, registry).register(...recipe.commands, ...accessControlCommands(registry));
+
+  async function identityOf(request: FastifyRequest) {
+    const who = await identity.authenticate(toHeaders(request));
+    if (!who) throw new UnauthenticatedError();
+    return who;
+  }
 
   async function contextOf(request: FastifyRequest): Promise<RequestContext> {
-    const header = request.headers.authorization ?? '';
-    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-    const session = token ? await identity.resolve(token) : null;
-    if (!session) throw new UnauthenticatedError();
-    return { tenantId: session.tenantId, membershipId: session.membershipId, sessionId: session.sessionId, requestId: request.id };
+    const ctx = await resolveContext(db, await identityOf(request), request.id);
+    if (!ctx) throw new BusinessError('no_membership_selected', 'Choose a company first.', 401);
+    return ctx;
   }
 
   app.setErrorHandler((error: Error, request, reply) => {
@@ -44,13 +74,69 @@ export function buildApp({ db, identity, logger = false }: AppDeps): FastifyInst
 
   app.get('/health', async () => ({ ok: true }));
 
+  // Identity library endpoints (sign-in, sign-out, session). Forwarded as standard fetch requests.
+  app.route({
+    method: ['GET', 'POST'],
+    url: '/api/auth/*',
+    async handler(request, reply) {
+      const url = new URL(request.url, publicUrl);
+      const body = request.method === 'POST' && request.body !== undefined ? JSON.stringify(request.body) : undefined;
+      const response = await authHandler(new Request(url, { method: request.method, headers: toHeaders(request), body }));
+      reply.status(response.status);
+      response.headers.forEach((value, key) => {
+        if (key.toLowerCase() !== 'set-cookie') reply.header(key, value);
+      });
+      const cookies = response.headers.getSetCookie();
+      if (cookies.length > 0) reply.header('set-cookie', cookies);
+      return reply.send(response.body ? Buffer.from(await response.arrayBuffer()) : null);
+    },
+  });
+
+  // After sign-in: which companies can I act for, and pick one for this session.
+  app.get('/session/memberships', async (request) => ({ memberships: await listMembershipsFor(db, await identityOf(request)) }));
+
+  app.post<{ Body: { membershipId?: unknown } }>('/session/membership', async (request) => {
+    const who = await identityOf(request);
+    const membershipId = request.body?.membershipId;
+    if (typeof membershipId !== 'string' || !uuidRe.test(membershipId)) throw new ValidationError({ membershipId: 'required' });
+    if (!(await selectMembership(db, who, membershipId))) throw new ForbiddenError('not_your_membership');
+    return describeMe(db, (await resolveContext(db, who, request.id))!, registry);
+  });
+
+  app.get('/me', async (request) => describeMe(db, await contextOf(request), registry));
+
   app.post<{ Params: { name: string }; Body: unknown }>('/commands/:name', async (request) => {
     const ctx = await contextOf(request);
     const key = request.headers['idempotency-key'];
-    return dispatcher.dispatch(ctx, request.params.name, request.body ?? {}, typeof key === 'string' ? key : '');
+    const policy = request.headers['x-policy-version'];
+    return dispatcher.dispatch(ctx, request.params.name, request.body ?? {}, {
+      idempotencyKey: typeof key === 'string' ? key : '',
+      policyVersion: typeof policy === 'string' ? policy : undefined,
+    });
   });
 
   app.get('/orders', async (request) => ({ orders: await listOrders(db, await contextOf(request)) }));
+
+  app.get('/permissions/catalog', async (request) => {
+    await contextOf(request);
+    return { resources: registry.all() };
+  });
+  app.get('/permissions/members', async (request) => ({ members: await listMembers(db, await contextOf(request)) }));
+  app.get('/permissions/roles', async (request) => ({ roles: await listRoles(db, await contextOf(request)) }));
+  app.get<{ Params: { id: string } }>('/permissions/members/:id', async (request) => {
+    if (!uuidRe.test(request.params.id)) throw new ValidationError({ id: 'invalid' });
+    return describeAccess(db, await contextOf(request), registry, request.params.id);
+  });
+  app.post<{ Body: { membershipId?: string; resource?: string; action?: string; branchId?: string | null } }>(
+    '/permissions/simulate',
+    async (request) => {
+      const { membershipId, resource, action, branchId = null } = request.body ?? {};
+      if (!membershipId || !uuidRe.test(membershipId) || !resource || !action || (branchId !== null && !uuidRe.test(branchId))) {
+        throw new ValidationError({ body: 'membershipId, resource, action and optional branchId are required' });
+      }
+      return simulateAccess(db, await contextOf(request), registry, { membershipId, resource, action, branchId });
+    },
+  );
 
   return app;
 }

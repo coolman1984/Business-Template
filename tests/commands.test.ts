@@ -1,18 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildApp } from '../apps/api/src/app.js';
 import { createOrder } from '../packages/engine-orders/src/index.js';
 import {
+  CapabilityRegistry,
   CommandDispatcher,
-  OpaqueTokenIdentity,
   type CommandDefinition,
   type RequestContext,
 } from '../packages/platform-core/src/index.js';
-import { createTestDatabase, type TestDatabase } from './helpers.js';
+import { recipe } from '../packages/recipe-inventory-orders/src/index.js';
+import { createTestApi, createTestDatabase, type TestApi, type TestDatabase } from './helpers.js';
 
 let t: TestDatabase;
-let api: FastifyInstance;
+let h: TestApi;
 let nour: TestDatabase['tenants'][string];
 let amal: TestDatabase['tenants'][string];
 
@@ -20,38 +19,29 @@ beforeAll(async () => {
   t = await createTestDatabase();
   nour = t.tenants.nour!;
   amal = t.tenants.amal!;
-  api = buildApp({ db: t.app, identity: new OpaqueTokenIdentity(t.app) });
-  await api.ready();
+  h = await createTestApi(t);
 });
 
 afterAll(async () => {
-  await api?.close();
+  await h?.close();
   await t?.drop();
 });
 
-function command(token: string, name: string, body: unknown, key: string = randomUUID()) {
-  return api.inject({
-    method: 'POST',
-    url: `/commands/${name}`,
-    headers: { authorization: `Bearer ${token}`, 'idempotency-key': key },
-    payload: body as object,
-  });
-}
-
-const tokenOf = (tenant: typeof nour, member: string) => tenant.members[member]!.token;
-const count = async (sqlText: string, values: unknown[] = []) =>
-  Number((await t.ownerQuery<{ n: string }>(sqlText, values))[0]!.n);
+const m = (tenant: typeof nour, key: string) => tenant.members[key]!;
+const command = (tenant: typeof nour, member: string, name: string, body: unknown, key?: string) =>
+  h.command(m(tenant, member), name, body, key ? { key } : {});
+const count = async (sqlText: string, values: unknown[] = []) => Number((await t.ownerQuery<{ n: string }>(sqlText, values))[0]!.n);
 
 describe('tenant switching is rejected', () => {
   it("refuses to create an order in another company's branch and leaves it untouched", async () => {
     const before = await count('SELECT count(*) AS n FROM orders WHERE tenant_id = $1', [amal.id]);
-    const res = await command(tokenOf(nour, 'cairoClerk'), 'orders.create', { branchId: amal.branches.GIZ, customerName: 'x' });
+    const res = await command(nour, 'cairoClerk', 'orders.create', { branchId: amal.branches.GIZ, customerName: 'x' });
     expect(res.statusCode).toBe(404);
     expect(await count('SELECT count(*) AS n FROM orders WHERE tenant_id = $1', [amal.id])).toBe(before);
   });
 
   it('never accepts a tenant id from the request body', async () => {
-    const res = await command(tokenOf(nour, 'cairoClerk'), 'orders.create', {
+    const res = await command(nour, 'cairoClerk', 'orders.create', {
       tenantId: amal.id,
       branchId: nour.branches.CAI,
       customerName: 'x',
@@ -60,33 +50,39 @@ describe('tenant switching is rejected', () => {
   });
 
   it("cannot edit another company's order by guessing its id", async () => {
-    const created = await command(tokenOf(amal, 'admin'), 'orders.create', { branchId: amal.branches.GIZ, customerName: 'الأمل' });
+    const created = await command(amal, 'admin', 'orders.create', { branchId: amal.branches.GIZ, customerName: 'الأمل' });
     const order = created.json().result;
-    const res = await command(tokenOf(nour, 'admin'), 'orders.update', { orderId: order.id, expectedVersion: 1, customerName: 'hijack' });
+    const res = await command(nour, 'admin', 'orders.update', { orderId: order.id, expectedVersion: 1, customerName: 'hijack' });
     expect(res.statusCode).toBe(404);
     const [row] = await t.ownerQuery<{ customer_name: string }>('SELECT customer_name FROM orders WHERE id = $1', [order.id]);
     expect(row!.customer_name).toBe('الأمل');
   });
 
   it("lists only the caller's company and permitted branches", async () => {
-    await command(tokenOf(nour, 'deniedAlex'), 'orders.create', { branchId: nour.branches.CAI, customerName: 'cairo' });
-    const alex = await command(tokenOf(amal, 'admin'), 'orders.create', { branchId: amal.branches.GIZ, customerName: 'giza' });
+    await command(nour, 'deniedAlex', 'orders.create', { branchId: nour.branches.CAI, customerName: 'cairo' });
+    const alex = await command(amal, 'admin', 'orders.create', { branchId: amal.branches.GIZ, customerName: 'giza' });
     expect(alex.statusCode).toBe(200);
-    const res = await api.inject({ method: 'GET', url: '/orders', headers: { authorization: `Bearer ${tokenOf(nour, 'cairoClerk')}` } });
+    const res = await h.get(m(nour, 'cairoClerk'), '/orders');
     const orders = res.json().orders as { branchId: string }[];
     expect(orders.length).toBeGreaterThan(0);
     expect(orders.every((o) => o.branchId === nour.branches.CAI)).toBe(true);
   });
 
   it('rejects requests without a valid session', async () => {
-    expect((await command('not-a-real-token-at-all-000', 'orders.create', {})).statusCode).toBe(401);
-    expect((await api.inject({ method: 'GET', url: '/orders' })).statusCode).toBe(401);
+    const forged = await h.api.inject({
+      method: 'POST',
+      url: '/commands/orders.create',
+      headers: { authorization: 'Bearer not-a-real-token-at-all-000', 'idempotency-key': randomUUID() },
+      payload: {},
+    });
+    expect(forged.statusCode).toBe(401);
+    expect((await h.api.inject({ method: 'GET', url: '/orders' })).statusCode).toBe(401);
   });
 });
 
 describe('every write is atomic with its audit record', () => {
   it('writes the order, its audit event and its business number together', async () => {
-    const res = await command(tokenOf(nour, 'cairoClerk'), 'orders.create', { branchId: nour.branches.CAI, customerName: 'مؤسسة الفجر' });
+    const res = await command(nour, 'cairoClerk', 'orders.create', { branchId: nour.branches.CAI, customerName: 'مؤسسة الفجر' });
     expect(res.statusCode).toBe(200);
     const { operationId, result } = res.json();
     expect(result.orderNumber).toMatch(/^ORD-\d{4}-\d{6}$/);
@@ -145,11 +141,20 @@ describe('every write is atomic with its audit record', () => {
         }),
         /without an audit entry/,
       ],
+      [
+        'the command changes a record it does not report',
+        variant('test.hiddenSideEffect', async (trx, input, exec) => {
+          const out = await createOrder.execute(trx, input, exec);
+          await trx.updateTable('memberships').set({ policy_version: 99 }).where('id', '!=', exec.ctx.membershipId).execute();
+          return out;
+        }),
+        /changed records without audit entries/,
+      ],
     ])('when %s', async (_label, def, expected) => {
-      const dispatcher = new CommandDispatcher(t.app).register(def);
+      const dispatcher = new CommandDispatcher(t.app, new CapabilityRegistry(recipe.capabilities)).register(def);
       const before = await snapshot();
       await expect(
-        dispatcher.dispatch(ctx(), def.name, { branchId: nour.branches.CAI, customerName: 'partial' }, randomUUID()),
+        dispatcher.dispatch(ctx(), def.name, { branchId: nour.branches.CAI, customerName: 'partial' }, { idempotencyKey: randomUUID() }),
       ).rejects.toThrow(expected);
       expect(await snapshot()).toEqual(before);
     });
@@ -160,8 +165,8 @@ describe('retries and concurrency', () => {
   it('replays a repeated request instead of creating a duplicate', async () => {
     const key = randomUUID();
     const body = { branchId: nour.branches.CAI, customerName: 'retry' };
-    const first = await command(tokenOf(nour, 'cairoClerk'), 'orders.create', body, key);
-    const second = await command(tokenOf(nour, 'cairoClerk'), 'orders.create', body, key);
+    const first = await command(nour, 'cairoClerk', 'orders.create', body, key);
+    const second = await command(nour, 'cairoClerk', 'orders.create', body, key);
     expect(first.json().replayed).toBe(false);
     expect(second.json()).toEqual({ ...first.json(), replayed: true });
     expect(await count("SELECT count(*) AS n FROM orders WHERE customer_name = 'retry'")).toBe(1);
@@ -169,8 +174,8 @@ describe('retries and concurrency', () => {
 
   it('refuses to reuse a key for a different request', async () => {
     const key = randomUUID();
-    await command(tokenOf(nour, 'cairoClerk'), 'orders.create', { branchId: nour.branches.CAI, customerName: 'a' }, key);
-    const res = await command(tokenOf(nour, 'cairoClerk'), 'orders.create', { branchId: nour.branches.CAI, customerName: 'b' }, key);
+    await command(nour, 'cairoClerk', 'orders.create', { branchId: nour.branches.CAI, customerName: 'a' }, key);
+    const res = await command(nour, 'cairoClerk', 'orders.create', { branchId: nour.branches.CAI, customerName: 'b' }, key);
     expect(res.statusCode).toBe(409);
     expect(res.json().error).toBe('idempotency_key_reused');
   });
@@ -178,7 +183,7 @@ describe('retries and concurrency', () => {
   it('executes once when the same request arrives twice at the same moment', async () => {
     const key = randomUUID();
     const body = { branchId: nour.branches.CAI, customerName: 'double-click' };
-    const results = await Promise.all([1, 2, 3].map(() => command(tokenOf(nour, 'cairoClerk'), 'orders.create', body, key)));
+    const results = await Promise.all([1, 2, 3].map(() => command(nour, 'cairoClerk', 'orders.create', body, key)));
     expect(results.every((r) => r.statusCode === 200)).toBe(true);
     expect(new Set(results.map((r) => r.json().result.id)).size).toBe(1);
     expect(await count("SELECT count(*) AS n FROM orders WHERE customer_name = 'double-click'")).toBe(1);
@@ -187,7 +192,7 @@ describe('retries and concurrency', () => {
   it('issues gapless, unique order numbers under parallel creation', async () => {
     const results = await Promise.all(
       Array.from({ length: 12 }, (_, i) =>
-        command(tokenOf(amal, 'admin'), 'orders.create', { branchId: amal.branches.GIZ, customerName: `p${i}` }),
+        command(amal, 'admin', 'orders.create', { branchId: amal.branches.GIZ, customerName: `p${i}` }),
       ),
     );
     expect(results.every((r) => r.statusCode === 200)).toBe(true);
@@ -198,10 +203,10 @@ describe('retries and concurrency', () => {
   });
 
   it('rejects an edit based on a stale version', async () => {
-    const created = (await command(tokenOf(nour, 'cairoClerk'), 'orders.create', { branchId: nour.branches.CAI, customerName: 'v1' })).json().result;
-    const ok = await command(tokenOf(nour, 'cairoClerk'), 'orders.update', { orderId: created.id, expectedVersion: 1, customerName: 'v2' });
+    const created = (await command(nour, 'cairoClerk', 'orders.create', { branchId: nour.branches.CAI, customerName: 'v1' })).json().result;
+    const ok = await command(nour, 'cairoClerk', 'orders.update', { orderId: created.id, expectedVersion: 1, customerName: 'v2' });
     expect(ok.json().result.version).toBe(2);
-    const stale = await command(tokenOf(nour, 'cairoClerk'), 'orders.update', { orderId: created.id, expectedVersion: 1, notes: 'late' });
+    const stale = await command(nour, 'cairoClerk', 'orders.update', { orderId: created.id, expectedVersion: 1, notes: 'late' });
     expect(stale.statusCode).toBe(409);
     expect(stale.json().error).toBe('stale_version');
   });
@@ -209,18 +214,18 @@ describe('retries and concurrency', () => {
 
 describe('permissions', () => {
   it('does not combine an action allowed in one branch with a view allowed in another', async () => {
-    const alexOrder = (await command(tokenOf(nour, 'deniedAlex'), 'orders.create', { branchId: nour.branches.CAI, customerName: 'x' })).json().result;
+    const alexOrder = (await command(nour, 'deniedAlex', 'orders.create', { branchId: nour.branches.CAI, customerName: 'x' })).json().result;
     // "mixed" may submit in Cairo and only view in Alexandria. Move an order into ALX via the owner for the test.
-    await t.ownerQuery('UPDATE orders SET branch_id = $1 WHERE id = $2', [nour.branches.ALX, alexOrder.id]);
-    const res = await command(tokenOf(nour, 'mixed'), 'orders.submit', { orderId: alexOrder.id, expectedVersion: 1 });
+    await t.ownerWrite('UPDATE orders SET branch_id = $1 WHERE id = $2', [nour.branches.ALX, alexOrder.id]);
+    const res = await command(nour, 'mixed', 'orders.submit', { orderId: alexOrder.id, expectedVersion: 1 });
     expect(res.statusCode).toBe(403);
     expect(res.json().details.reasonCode).toBe('no_matching_grant');
   });
 
   it('lets an explicit deny beat a company-wide allow, and records the attempt', async () => {
-    const ok = await command(tokenOf(nour, 'deniedAlex'), 'orders.create', { branchId: nour.branches.CAI, customerName: 'ok' });
+    const ok = await command(nour, 'deniedAlex', 'orders.create', { branchId: nour.branches.CAI, customerName: 'ok' });
     expect(ok.statusCode).toBe(200);
-    const denied = await command(tokenOf(nour, 'deniedAlex'), 'orders.create', { branchId: nour.branches.ALX, customerName: 'no' });
+    const denied = await command(nour, 'deniedAlex', 'orders.create', { branchId: nour.branches.ALX, customerName: 'no' });
     expect(denied.statusCode).toBe(403);
     expect(denied.json().details.reasonCode).toBe('explicit_deny');
     const events = await t.ownerQuery<{ reason_code: string; command: string }>(
@@ -232,38 +237,33 @@ describe('permissions', () => {
 
   it('applies a revoked permission to the very next request of an open session', async () => {
     const clerk = nour.members.cairoClerk!.membershipId;
-    const [grant] = await t.ownerQuery<{ id: string }>(
-      "SELECT id FROM permission_grants WHERE membership_id = $1 AND action = 'create'",
-      [clerk],
-    );
-    const before = await command(tokenOf(nour, 'cairoClerk'), 'orders.create', { branchId: nour.branches.CAI, customerName: 'before' });
+    const [assignment] = await t.ownerQuery<{ id: string }>('SELECT id FROM role_assignments WHERE membership_id = $1', [clerk]);
+    const before = await command(nour, 'cairoClerk', 'orders.create', { branchId: nour.branches.CAI, customerName: 'before' });
     expect(before.statusCode).toBe(200);
 
-    const revoke = await command(tokenOf(nour, 'admin'), 'permissions.revoke', { grantId: grant!.id, reason: 'role change' });
+    const revoke = await command(nour, 'admin', 'roles.unassign', { assignmentId: assignment!.id, reason: 'role change' });
     expect(revoke.statusCode).toBe(200);
 
-    const after = await command(tokenOf(nour, 'cairoClerk'), 'orders.create', { branchId: nour.branches.CAI, customerName: 'after' });
+    const after = await command(nour, 'cairoClerk', 'orders.create', { branchId: nour.branches.CAI, customerName: 'after' });
     expect(after.statusCode).toBe(403);
     const audit = await t.ownerQuery<{ action: string }>(
       "SELECT action FROM audit_events WHERE operation_id = $1 ORDER BY id",
       [revoke.json().operationId],
     );
-    expect(audit.map((a) => a.action)).toEqual(['revoke', 'policy_change']);
+    expect(audit.map((a) => a.action)).toEqual(['delete', 'policy_change']);
 
-    const regrant = await command(tokenOf(nour, 'admin'), 'permissions.grant', {
+    const regrant = await command(nour, 'admin', 'roles.assign', {
       membershipId: clerk,
-      resource: 'orders',
-      action: 'create',
-      effect: 'allow',
+      roleId: nour.roles.branch_manager,
       scope: { kind: 'branches', branchIds: [nour.branches.CAI] },
       reason: 'restored',
     });
     expect(regrant.statusCode).toBe(200);
-    expect((await command(tokenOf(nour, 'cairoClerk'), 'orders.create', { branchId: nour.branches.CAI, customerName: 'again' })).statusCode).toBe(200);
+    expect((await command(nour, 'cairoClerk', 'orders.create', { branchId: nour.branches.CAI, customerName: 'again' })).statusCode).toBe(200);
   });
 
   it('does not let an admin grant permissions to themselves', async () => {
-    const res = await command(tokenOf(nour, 'admin'), 'permissions.grant', {
+    const res = await command(nour, 'admin', 'permissions.grant', {
       membershipId: nour.members.admin!.membershipId,
       resource: 'orders',
       action: 'create',
@@ -272,11 +272,11 @@ describe('permissions', () => {
       reason: 'self',
     });
     expect(res.statusCode).toBe(403);
-    expect(res.json().details.reasonCode).toBe('self_grant');
+    expect(res.json().details.reasonCode).toBe('self_change');
   });
 
   it("cannot grant access to another company's branch", async () => {
-    const res = await command(tokenOf(nour, 'admin'), 'permissions.grant', {
+    const res = await command(nour, 'admin', 'permissions.grant', {
       membershipId: nour.members.cairoClerk!.membershipId,
       resource: 'orders',
       action: 'view',
@@ -288,7 +288,7 @@ describe('permissions', () => {
   });
 
   it("cannot grant permissions to another company's member", async () => {
-    const res = await command(tokenOf(nour, 'admin'), 'permissions.grant', {
+    const res = await command(nour, 'admin', 'permissions.grant', {
       membershipId: amal.members.admin!.membershipId,
       resource: 'orders',
       action: 'view',

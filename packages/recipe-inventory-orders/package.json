@@ -1,0 +1,10 @@
+{
+  "name": "@factory/recipe-inventory-orders",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@factory/platform-core": "workspace:*",
+    "@factory/engine-orders": "workspace:*"
+  }
+}

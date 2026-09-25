@@ -22,6 +22,7 @@ services:
       DATABASE_ADMIN_URL: postgres://postgres:${POSTGRES_SUPERUSER_PASSWORD}@db:5432/postgres
       DATABASE_OWNER_URL: postgres://factory_owner:${OWNER_PASSWORD:?set OWNER_PASSWORD}@db:5432/factory
       DATABASE_APP_URL: postgres://factory_app:${APP_PASSWORD:?set APP_PASSWORD}@db:5432/factory
+      DATABASE_AUTH_URL: postgres://factory_auth:${AUTH_PASSWORD:?set AUTH_PASSWORD}@db:5432/factory
     command: ["sh", "-c", "pnpm db:bootstrap && pnpm db:migrate"]
 
   api:
@@ -29,9 +30,12 @@ services:
     restart: unless-stopped
     depends_on:
       migrate: { condition: service_completed_successfully }
-    # The API only ever gets the runtime role; it has no owner or superuser credentials.
+    # The API gets only the runtime and identity roles; it has no owner or superuser credentials.
     environment:
       DATABASE_APP_URL: postgres://factory_app:${APP_PASSWORD}@db:5432/factory
+      DATABASE_AUTH_URL: postgres://factory_auth:${AUTH_PASSWORD}@db:5432/factory
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
+      PUBLIC_URL: ${PUBLIC_URL:-http://127.0.0.1:3000}
     ports:
       - "${LISTEN_ADDRESS:-127.0.0.1}:3000:3000"
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb, withTenantTransaction, type Db } from '../packages/platform-core/src/index.js';
@@ -14,9 +15,16 @@ let amalOrderId: string;
 const asTenant = <T>(db: Db, tenantId: string, membershipId: string, fn: Parameters<typeof withTenantTransaction<T>>[2]) =>
   withTenantTransaction(db, { tenantId, membershipId }, fn);
 
+/** Like the command dispatcher: tenant context plus an operation id, which business writes require. */
+const asOperation = <T>(db: Db, tenantId: string, membershipId: string, fn: Parameters<typeof withTenantTransaction<T>>[2]) =>
+  withTenantTransaction(db, { tenantId, membershipId }, async (trx) => {
+    await sql`SELECT set_config('app.operation_id', ${randomUUID()}, true)`.execute(trx);
+    return fn(trx);
+  });
+
 async function insertOrder(db: Db, tenant: typeof nour, branchCode: string, member = 'admin') {
   const membershipId = tenant.members[member]!.membershipId;
-  return asTenant(db, tenant.id, membershipId, (trx) =>
+  return asOperation(db, tenant.id, membershipId, (trx) =>
     trx
       .insertInto('orders')
       .values({
@@ -78,7 +86,7 @@ describe('row-level isolation in the database', () => {
 
   it('rejects writing a row labelled with another tenant', async () => {
     await expect(
-      asTenant(t.app, nour.id, nour.members.admin!.membershipId, (trx) =>
+      asOperation(t.app, nour.id, nour.members.admin!.membershipId, (trx) =>
         trx
           .insertInto('orders')
           .values({
@@ -97,7 +105,7 @@ describe('row-level isolation in the database', () => {
 
   it("rejects linking an own-tenant row to another tenant's branch", async () => {
     await expect(
-      asTenant(t.app, nour.id, nour.members.admin!.membershipId, (trx) =>
+      asOperation(t.app, nour.id, nour.members.admin!.membershipId, (trx) =>
         trx
           .insertInto('orders')
           .values({
@@ -115,7 +123,7 @@ describe('row-level isolation in the database', () => {
   });
 
   it("cannot update another tenant's row by id", async () => {
-    const result = await asTenant(t.app, nour.id, nour.members.admin!.membershipId, (trx) =>
+    const result = await asOperation(t.app, nour.id, nour.members.admin!.membershipId, (trx) =>
       trx.updateTable('orders').set({ customer_name: 'hijacked' }).where('id', '=', amalOrderId).executeTakeFirst(),
     );
     expect(result.numUpdatedRows).toBe(0n);
@@ -150,9 +158,21 @@ describe('runtime role privileges', () => {
     expect(owned).toEqual([]);
   });
 
-  it('cannot read identities or sessions directly', async () => {
+  it('cannot read identities, passwords or sessions directly', async () => {
     await expect(t.app.selectFrom('users' as never).selectAll().execute()).rejects.toMatchObject({ code: '42501' });
-    await expect(sql`SELECT * FROM sessions`.execute(t.app)).rejects.toMatchObject({ code: '42501' });
+    await expect(sql`SELECT * FROM session_memberships`.execute(t.app)).rejects.toMatchObject({ code: '42501' });
+    await expect(sql`SELECT * FROM auth."account"`.execute(t.app)).rejects.toMatchObject({ code: '42501' });
+    await expect(sql`SELECT * FROM auth."session"`.execute(t.app)).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('gives the identity role no access to business data', async () => {
+    const authDb = createDb(t.authUrl, 1);
+    try {
+      await expect(sql`SELECT * FROM public.orders`.execute(authDb)).rejects.toMatchObject({ code: '42501' });
+      await expect(sql`SELECT * FROM public.memberships`.execute(authDb)).rejects.toMatchObject({ code: '42501' });
+    } finally {
+      await authDb.destroy();
+    }
   });
 
   it('cannot delete orders or rewrite audit history', async () => {
@@ -176,5 +196,55 @@ describe('runtime role privileges', () => {
     await expect(t.ownerQuery('UPDATE audit_events SET action = $1', ['tampered'])).rejects.toThrow(/append-only/);
     await expect(t.ownerQuery('DELETE FROM audit_events')).rejects.toThrow(/append-only/);
     await expect(t.ownerQuery('TRUNCATE audit_events')).rejects.toThrow(/append-only/);
+  });
+});
+
+describe('write guard: business writes only through commands', () => {
+  it('rejects a business write that has tenant context but no command operation', async () => {
+    await expect(
+      asTenant(t.app, nour.id, nour.members.admin!.membershipId, (trx) =>
+        trx.updateTable('orders').set({ notes: 'side door' }).where('tenant_id', '=', nour.id).execute(),
+      ),
+    ).rejects.toThrow(/outside a command/);
+  });
+
+  it('rejects it even for the owner role', async () => {
+    await expect(t.ownerQuery("UPDATE orders SET notes = 'owner side door'")).rejects.toThrow(/outside a command/);
+  });
+
+  it('journals every changed row under its operation', async () => {
+    const op = randomUUID();
+    await withTenantTransaction(t.app, { tenantId: nour.id, membershipId: nour.members.admin!.membershipId }, async (trx) => {
+      await sql`SELECT set_config('app.operation_id', ${op}, true)`.execute(trx);
+      await trx.updateTable('orders').set({ notes: 'journalled' }).where('tenant_id', '=', nour.id).execute();
+    });
+    const rows = await t.ownerQuery<{ table_name: string; op: string }>('SELECT table_name, op FROM row_changes WHERE operation_id = $1', [op]);
+    expect(rows).toEqual([{ table_name: 'orders', op: 'UPDATE' }]);
+  });
+});
+
+describe('schema conventions (a new table cannot silently skip them)', () => {
+  // Tables that hold tenant data but are infrastructure, not business records.
+  const INFRASTRUCTURE = new Set(['audit_events', 'security_events', 'idempotency_keys', 'document_sequences', 'row_changes', 'tenants']);
+
+  it('enables row-level security with a tenant policy on every table that has tenant_id', async () => {
+    const missing = await t.ownerQuery<{ table_name: string }>(`
+      SELECT c.table_name FROM information_schema.columns c
+      JOIN pg_class k ON k.relname = c.table_name AND k.relnamespace = 'public'::regnamespace
+      WHERE c.table_schema = 'public' AND c.column_name = 'tenant_id'
+        AND (NOT k.relrowsecurity OR NOT EXISTS (
+          SELECT 1 FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = c.table_name AND p.policyname = 'tenant_isolation'))`);
+    expect(missing).toEqual([]);
+  });
+
+  it('guards every business table against writes outside commands', async () => {
+    const tables = await t.ownerQuery<{ table_name: string; guarded: boolean }>(`
+      SELECT c.table_name,
+             EXISTS (SELECT 1 FROM pg_trigger tg JOIN pg_class k ON k.oid = tg.tgrelid
+                     WHERE k.relname = c.table_name AND tg.tgname = 'guard_business_write') AS guarded
+      FROM information_schema.columns c
+      WHERE c.table_schema = 'public' AND c.column_name = 'tenant_id'`);
+    const unguarded = tables.filter((r) => !INFRASTRUCTURE.has(r.table_name) && !r.guarded).map((r) => r.table_name);
+    expect(unguarded).toEqual([]);
   });
 });

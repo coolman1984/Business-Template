@@ -5,24 +5,32 @@ import pg from 'pg';
 const MIGRATIONS_DIR = join(import.meta.dirname, '..', 'db', 'migrations');
 
 /**
- * Creates the owner and runtime roles and the database. Needs a superuser connection; run once per
- * cluster. Neither role is superuser or BYPASSRLS; the runtime role owns nothing.
+ * Creates the owner, runtime and identity roles and the database. Needs a superuser connection; run once per
+ * cluster. No role is superuser or BYPASSRLS; the runtime and identity roles own nothing.
  */
 export async function bootstrapDatabase(opts: {
   adminUrl: string;
   dbName: string;
   ownerPassword: string;
   appPassword: string;
+  authPassword: string;
 }): Promise<void> {
   await ensureRoles(opts);
   await createDatabase(opts.adminUrl, opts.dbName);
 }
 
-export async function ensureRoles(opts: { adminUrl: string; ownerPassword: string; appPassword: string }): Promise<void> {
+export async function ensureRoles(opts: {
+  adminUrl: string;
+  ownerPassword: string;
+  appPassword: string;
+  authPassword: string;
+}): Promise<void> {
   await withAdmin(opts.adminUrl, async (client) => {
     const roles = [
       ['factory_owner', opts.ownerPassword, ''],
       ['factory_app', opts.appPassword, 'NOINHERIT'],
+      // Identity library connection: reads/writes only the auth schema, sees no business data.
+      ['factory_auth', opts.authPassword, 'NOINHERIT'],
     ] as const;
     for (const [role, password, extra] of roles) {
       const exists = await client.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [role]);

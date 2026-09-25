@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "@factory/platform-core": "workspace:*",
-    "@factory/engine-orders": "workspace:*"
+    "@factory/engine-orders": "workspace:*",
+    "@factory/recipe-inventory-orders": "workspace:*"
   }
 }

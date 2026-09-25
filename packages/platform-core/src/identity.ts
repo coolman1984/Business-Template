@@ -1,33 +1,45 @@
-import { createHash } from 'node:crypto';
 import { sql } from 'kysely';
+import type { RequestContext } from './context.js';
 import type { Db } from './db.js';
 
-export interface ResolvedSession {
-  readonly sessionId: string;
-  readonly membershipId: string;
-  readonly tenantId: string;
+/** A signed-in identity as proven by the identity provider. It says who, not which company. */
+export interface AuthenticatedIdentity {
+  readonly authSessionId: string;
+  readonly authUserId: string;
 }
 
 /**
- * Boundary to the identity provider. Phase zero uses opaque bearer tokens stored as hashes; phase one
- * swaps in a maintained identity library behind this same port. Business authorization stays ours.
+ * Boundary to the identity provider (a maintained library now; a company's own OIDC provider later).
+ * It only authenticates. Which company and what permissions are decided by the platform.
  */
 export interface IdentityPort {
-  resolve(bearerToken: string): Promise<ResolvedSession | null>;
+  authenticate(headers: Headers): Promise<AuthenticatedIdentity | null>;
 }
 
-export function hashToken(token: string): Buffer {
-  return createHash('sha256').update(token).digest();
+export interface MembershipChoice {
+  membershipId: string;
+  tenantId: string;
+  tenantName: string;
+  displayName: string;
 }
 
-export class OpaqueTokenIdentity implements IdentityPort {
-  constructor(private readonly db: Db) {}
+export async function listMembershipsFor(db: Db, identity: AuthenticatedIdentity): Promise<MembershipChoice[]> {
+  const { rows } = await sql<{ membership_id: string; tenant_id: string; tenant_name: string; display_name: string }>`
+    SELECT * FROM app.list_memberships_for(${identity.authUserId})`.execute(db);
+  return rows.map((r) => ({ membershipId: r.membership_id, tenantId: r.tenant_id, tenantName: r.tenant_name, displayName: r.display_name }));
+}
 
-  async resolve(bearerToken: string): Promise<ResolvedSession | null> {
-    if (bearerToken.length < 20 || bearerToken.length > 500) return null;
-    const { rows } = await sql<{ session_id: string; membership_id: string; tenant_id: string }>`
-      SELECT session_id, membership_id, tenant_id FROM app.resolve_session(${hashToken(bearerToken)})`.execute(this.db);
-    const row = rows[0];
-    return row ? { sessionId: row.session_id, membershipId: row.membership_id, tenantId: row.tenant_id } : null;
-  }
+/** Binds the session to one of the identity's own active memberships. False if it is not theirs. */
+export async function selectMembership(db: Db, identity: AuthenticatedIdentity, membershipId: string): Promise<boolean> {
+  const { rows } = await sql<{ ok: boolean }>`
+    SELECT app.select_membership(${identity.authSessionId}, ${identity.authUserId}, ${membershipId}::uuid) AS ok`.execute(db);
+  return rows[0]?.ok === true;
+}
+
+/** Tenant and membership for this session, re-checked on every request (suspension applies at once). */
+export async function resolveContext(db: Db, identity: AuthenticatedIdentity, requestId: string | null): Promise<RequestContext | null> {
+  const { rows } = await sql<{ membership_id: string; tenant_id: string }>`
+    SELECT * FROM app.resolve_session(${identity.authSessionId}, ${identity.authUserId})`.execute(db);
+  const row = rows[0];
+  return row ? { tenantId: row.tenant_id, membershipId: row.membership_id, sessionId: identity.authSessionId, requestId } : null;
 }

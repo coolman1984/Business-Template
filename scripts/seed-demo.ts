@@ -6,5 +6,5 @@ const tenants = await seedTenants(ownerUrl);
 for (const [code, t] of Object.entries(tenants)) {
   console.log(`\n${code}: tenant ${t.id}`);
   for (const [b, id] of Object.entries(t.branches)) console.log(`  branch ${b}: ${id}`);
-  for (const [k, m] of Object.entries(t.members)) console.log(`  ${k}: Bearer ${m.token}`);
+  for (const [k, m] of Object.entries(t.members)) console.log(`  ${k}: ${m.email} / ${m.password}`);
 }

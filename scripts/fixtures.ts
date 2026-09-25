@@ -1,14 +1,17 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { hashPassword } from 'better-auth/crypto';
 import pg from 'pg';
-import { hashToken } from '../packages/platform-core/src/identity.js';
+import { recipe, type RoleTemplate } from '../packages/recipe-inventory-orders/src/index.js';
 
 type Scope = { kind: 'tenant' } | { kind: 'branches'; branches: string[] };
-type GrantSpec = [resource: string, action: string, effect: 'allow' | 'deny', scope: Scope];
 
-interface MembershipSpec {
+interface MemberSpec {
   key: string;
   name: string;
-  grants: GrantSpec[];
+  /** Identity shared across companies: same key in two tenants = one person with two memberships. */
+  person?: string;
+  roles?: [roleCode: string, scope: Scope][];
+  exceptions?: [resource: string, action: string, effect: 'allow' | 'deny', scope: Scope][];
 }
 
 interface TenantSpec {
@@ -16,20 +19,27 @@ interface TenantSpec {
   name: string;
   legalEntity: string;
   branches: { code: string; name: string }[];
-  members: MembershipSpec[];
+  members: MemberSpec[];
+}
+
+export interface SeededMember {
+  membershipId: string;
+  email: string;
+  password: string;
 }
 
 export interface SeededTenant {
   id: string;
   legalEntityId: string;
   branches: Record<string, string>;
-  members: Record<string, { membershipId: string; token: string }>;
+  roles: Record<string, string>;
+  members: Record<string, SeededMember>;
 }
 
-const ORDER_ACTIONS = ['view', 'create', 'update', 'submit'];
-const all = (resource: string, actions: string[], scope: Scope): GrantSpec[] => actions.map((a) => [resource, a, 'allow', scope]);
+const tenantScope: Scope = { kind: 'tenant' };
+const branches = (...codes: string[]): Scope => ({ kind: 'branches', branches: codes });
 
-/** Two companies used by the isolation tests and the local demo. Synthetic data only. */
+/** Two companies used by the tests and the local demo. Synthetic data only. */
 export const TWO_TENANTS: TenantSpec[] = [
   {
     code: 'nour',
@@ -40,21 +50,37 @@ export const TWO_TENANTS: TenantSpec[] = [
       { code: 'ALX', name: 'فرع الإسكندرية' },
     ],
     members: [
-      { key: 'admin', name: 'مدير النور', grants: [['permissions', 'manage', 'allow', { kind: 'tenant' }], ...all('orders', ['view'], { kind: 'tenant' })] },
-      { key: 'cairoClerk', name: 'موظف القاهرة', grants: all('orders', ORDER_ACTIONS, { kind: 'branches', branches: ['CAI'] }) },
+      { key: 'admin', name: 'مدير النور', roles: [['company_admin', tenantScope]] },
+      { key: 'secondAdmin', name: 'مدير احتياطي', roles: [['company_admin', tenantScope]] },
+      { key: 'cairoClerk', name: 'مدير فرع القاهرة', roles: [['branch_manager', branches('CAI')]] },
+      { key: 'storekeeper', name: 'أمين مخزن القاهرة', roles: [['storekeeper', branches('CAI')]] },
+      { key: 'auditor', name: 'المراجع', roles: [['auditor', tenantScope]] },
       {
         key: 'mixed',
         name: 'مراجع مختلط',
-        grants: [
-          ['orders', 'submit', 'allow', { kind: 'branches', branches: ['CAI'] }],
-          ['orders', 'view', 'allow', { kind: 'branches', branches: ['ALX'] }],
+        exceptions: [
+          ['orders', 'submit', 'allow', branches('CAI')],
+          ['orders', 'view', 'allow', branches('ALX')],
         ],
       },
       {
         key: 'deniedAlex',
         name: 'ممنوع من الإسكندرية',
-        grants: [...all('orders', ORDER_ACTIONS, { kind: 'tenant' }), ['orders', 'create', 'deny', { kind: 'branches', branches: ['ALX'] }]],
+        roles: [['branch_manager', tenantScope]],
+        exceptions: [['orders', 'create', 'deny', branches('ALX')]],
       },
+      {
+        // May manage permissions, but holds order permissions only in Cairo: the delegation ceiling applies.
+        key: 'cairoAdmin',
+        name: 'مسؤول صلاحيات القاهرة',
+        roles: [['branch_manager', branches('CAI')]],
+        exceptions: [
+          ['permissions', 'view', 'allow', tenantScope],
+          ['permissions', 'manage', 'allow', tenantScope],
+        ],
+      },
+      { key: 'shared', person: 'shared', name: 'موظف مشترك', roles: [['storekeeper', branches('CAI')]] },
+      { key: 'newcomer', name: 'موظف جديد' },
     ],
   },
   {
@@ -63,69 +89,125 @@ export const TWO_TENANTS: TenantSpec[] = [
     legalEntity: 'الأمل ش.م.م',
     branches: [{ code: 'GIZ', name: 'فرع الجيزة' }],
     members: [
-      { key: 'admin', name: 'مدير الأمل', grants: [['permissions', 'manage', 'allow', { kind: 'tenant' }], ...all('orders', ORDER_ACTIONS, { kind: 'tenant' })] },
+      { key: 'admin', name: 'مدير الأمل', roles: [['company_admin', tenantScope]] },
+      { key: 'shared', person: 'shared', name: 'موظف مشترك', roles: [['storekeeper', branches('GIZ')]] },
     ],
   },
 ];
 
 /**
- * Platform provisioning, run as the owner role (not the runtime role): creates tenants, memberships,
- * grants and sessions. Tokens are random and returned once; only their hashes are stored.
+ * Platform provisioning, run as the owner role: companies, recipe role templates, people, memberships
+ * and role assignments. Passwords are random, returned once, and stored only as library hashes.
  */
-export async function seedTenants(ownerUrl: string, specs: TenantSpec[] = TWO_TENANTS): Promise<Record<string, SeededTenant>> {
+export async function seedTenants(
+  ownerUrl: string,
+  specs: TenantSpec[] = TWO_TENANTS,
+  roleTemplates: readonly RoleTemplate[] = recipe.roleTemplates,
+): Promise<Record<string, SeededTenant>> {
   const client = new pg.Client({ connectionString: ownerUrl });
   await client.connect();
   const out: Record<string, SeededTenant> = {};
+  const people = new Map<string, { userId: string; email: string; password: string }>();
+  const one = async <T extends Record<string, unknown>>(text: string, values: unknown[]) => (await client.query<T>(text, values)).rows[0]!;
   try {
     await client.query('BEGIN');
-    for (const spec of specs) {
-      const one = async <T extends Record<string, unknown>>(text: string, values: unknown[]) =>
-        (await client.query<T>(text, values)).rows[0]!;
-      const tenant = await one<{ id: string }>('INSERT INTO tenants (code, name) VALUES ($1, $2) RETURNING id', [spec.code, spec.name]);
-      const le = await one<{ id: string }>(
-        'INSERT INTO legal_entities (tenant_id, code, name) VALUES ($1, $2, $3) RETURNING id',
-        [tenant.id, 'MAIN', spec.legalEntity],
+    // Business tables accept writes only inside an operation; provisioning is one.
+    await client.query("SELECT set_config('app.operation_id', $1, true)", [randomUUID()]);
+
+    const person = async (key: string, name: string) => {
+      const existing = people.get(key);
+      if (existing) return existing;
+      const authId = randomUUID();
+      const email = `${key}-${authId.slice(0, 8)}@example.test`.toLowerCase();
+      const password = randomBytes(18).toString('base64url');
+      await client.query(`INSERT INTO auth."user" (id, name, email, "emailVerified") VALUES ($1, $2, $3, true)`, [authId, name, email]);
+      await client.query(
+        `INSERT INTO auth."account" (id, "accountId", "providerId", "userId", password, "updatedAt")
+         VALUES ($1, $2, 'credential', $2, $3, now())`,
+        [randomUUID(), authId, await hashPassword(password)],
       );
-      const branches: Record<string, string> = {};
+      const user = await one<{ id: string }>('INSERT INTO users (display_name, auth_user_id) VALUES ($1, $2) RETURNING id', [name, authId]);
+      const created = { userId: user.id, email, password };
+      people.set(key, created);
+      return created;
+    };
+
+    for (const spec of specs) {
+      const tenant = await one<{ id: string }>('INSERT INTO tenants (code, name) VALUES ($1, $2) RETURNING id', [spec.code, spec.name]);
+      const le = await one<{ id: string }>('INSERT INTO legal_entities (tenant_id, code, name) VALUES ($1, $2, $3) RETURNING id', [
+        tenant.id,
+        'MAIN',
+        spec.legalEntity,
+      ]);
+      const branchIds: Record<string, string> = {};
       for (const b of spec.branches) {
-        branches[b.code] = (
-          await one<{ id: string }>(
-            'INSERT INTO branches (tenant_id, legal_entity_id, code, name) VALUES ($1, $2, $3, $4) RETURNING id',
-            [tenant.id, le.id, b.code, b.name],
-          )
+        branchIds[b.code] = (
+          await one<{ id: string }>('INSERT INTO branches (tenant_id, legal_entity_id, code, name) VALUES ($1, $2, $3, $4) RETURNING id', [
+            tenant.id,
+            le.id,
+            b.code,
+            b.name,
+          ])
         ).id;
       }
-      const members: SeededTenant['members'] = {};
+      const roleIds: Record<string, string> = {};
+      for (const r of roleTemplates) {
+        const role = await one<{ id: string }>('INSERT INTO roles (tenant_id, code, name, description) VALUES ($1, $2, $3, $4) RETURNING id', [
+          tenant.id,
+          r.code,
+          r.name,
+          r.description,
+        ]);
+        roleIds[r.code] = role.id;
+        for (const [resource, action] of r.permissions) {
+          await client.query('INSERT INTO role_permissions (tenant_id, role_id, resource, action) VALUES ($1, $2, $3, $4)', [
+            tenant.id,
+            role.id,
+            resource,
+            action,
+          ]);
+        }
+      }
+
+      const members: Record<string, SeededMember> = {};
       for (const m of spec.members) {
-        const user = await one<{ id: string }>('INSERT INTO users (display_name) VALUES ($1) RETURNING id', [m.name]);
-        const membership = await one<{ id: string }>(
-          'INSERT INTO memberships (tenant_id, user_id, display_name) VALUES ($1, $2, $3) RETURNING id',
-          [tenant.id, user.id, m.name],
-        );
-        for (const [resource, action, effect, scope] of m.grants) {
-          const grant = await one<{ id: string }>(
+        const p = await person(m.person ?? `${spec.code}-${m.key}`, m.name);
+        const membership = await one<{ id: string }>('INSERT INTO memberships (tenant_id, user_id, display_name) VALUES ($1, $2, $3) RETURNING id', [
+          tenant.id,
+          p.userId,
+          m.name,
+        ]);
+        for (const [code, scope] of m.roles ?? []) {
+          const a = await one<{ id: string }>(
+            `INSERT INTO role_assignments (tenant_id, membership_id, role_id, scope_kind, reason)
+             VALUES ($1, $2, $3, $4, 'initial provisioning') RETURNING id`,
+            [tenant.id, membership.id, roleIds[code], scope.kind],
+          );
+          for (const b of scope.kind === 'branches' ? scope.branches : []) {
+            await client.query('INSERT INTO role_assignment_branches (tenant_id, assignment_id, branch_id) VALUES ($1, $2, $3)', [
+              tenant.id,
+              a.id,
+              branchIds[b],
+            ]);
+          }
+        }
+        for (const [resource, action, effect, scope] of m.exceptions ?? []) {
+          const g = await one<{ id: string }>(
             `INSERT INTO permission_grants (tenant_id, membership_id, resource, action, effect, scope_kind, reason)
              VALUES ($1, $2, $3, $4, $5, $6, 'initial provisioning') RETURNING id`,
             [tenant.id, membership.id, resource, action, effect, scope.kind],
           );
-          if (scope.kind === 'branches') {
-            for (const code of scope.branches) {
-              await client.query('INSERT INTO permission_grant_branches (tenant_id, grant_id, branch_id) VALUES ($1, $2, $3)', [
-                tenant.id,
-                grant.id,
-                branches[code],
-              ]);
-            }
+          for (const b of scope.kind === 'branches' ? scope.branches : []) {
+            await client.query('INSERT INTO permission_grant_branches (tenant_id, grant_id, branch_id) VALUES ($1, $2, $3)', [
+              tenant.id,
+              g.id,
+              branchIds[b],
+            ]);
           }
         }
-        const token = randomBytes(32).toString('base64url');
-        await client.query(`INSERT INTO sessions (token_hash, membership_id, expires_at) VALUES ($1, $2, now() + interval '30 days')`, [
-          hashToken(token),
-          membership.id,
-        ]);
-        members[m.key] = { membershipId: membership.id, token };
+        members[m.key] = { membershipId: membership.id, email: p.email, password: p.password };
       }
-      out[spec.code] = { id: tenant.id, legalEntityId: le.id, branches, members };
+      out[spec.code] = { id: tenant.id, legalEntityId: le.id, branches: branchIds, roles: roleIds, members };
     }
     await client.query('COMMIT');
   } catch (error) {
