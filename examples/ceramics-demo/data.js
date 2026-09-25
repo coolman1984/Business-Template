@@ -943,7 +943,8 @@
     });
 
     // ---- production: shift reports, downtime, sorting lots ----
-    var shiftReports = [], downtimeEvents = [], sortingLots = [];
+    var shiftReports = [], downtimeEvents = [], sortingLots = [], defectOccurrences = [];
+    var DEFECT_WEIGHTS = codes.defects.map(function (d) { return [d.id, 2]; });
     var supervisorsByLine = {};
     lines.forEach(function (l) {
       var onLine = employees.filter(function (e) { return e.departmentId === 'D02' && e.line === l.id; });
@@ -996,6 +997,18 @@
             downtimeMinutes: downMinutes, gasM3: gasM3, supervisorId: rShift.pick(supervisorsByLine[line.id]).id,
           };
           shiftReports.push(report);
+          var downgraded = commercialM2 + secondM2;
+          if (downgraded > 0) {
+            // During the burner incident, shade variation (DF03) is the dominant root cause, not a mix of defects.
+            var splitCount = burnerIssue ? (rDown.chance(0.15) ? 2 : 1) : (rDown.chance(0.6) ? 2 : 1);
+            var remaining = downgraded;
+            for (var k = 0; k < splitCount; k++) {
+              var codeId = burnerIssue && rDown.chance(0.85) ? 'DF03' : rDown.weighted(DEFECT_WEIGHTS);
+              var portion = k === splitCount - 1 ? remaining : Math.min(remaining, Math.round(downgraded * rDown.between(0.4, 0.7)));
+              remaining -= portion;
+              if (portion > 0) defectOccurrences.push({ id: uid('dfo'), shiftReportId: report.id, line: line.id, date: date, defectCodeId: codeId, m2: portion });
+            }
+          }
           if (kilnOutM2 > 0) {
             if (!shadesCache[product.id]) shadesCache[product.id] = productShades(rLot, product.id);
             var shade = pickShade(rLot, shadesCache[product.id]);
@@ -1223,7 +1236,7 @@
 
     return {
       millBatches: millBatches, atomizerRuns: atomizerRuns, glazeBatches: glazeBatches,
-      shiftReports: shiftReports, downtimeEvents: downtimeEvents, sortingLots: sortingLots, labTests: labTests, productionPlan: productionPlan,
+      shiftReports: shiftReports, downtimeEvents: downtimeEvents, sortingLots: sortingLots, defectOccurrences: defectOccurrences, labTests: labTests, productionPlan: productionPlan,
       salesOrders: salesOrders, dispatchLoads: dispatchLoads, purchaseOrders: purchaseOrders, workOrders: workOrders,
       energyReadings: energyReadings, attendance: attendance, safetyIncidents: safetyIncidents,
     };
@@ -1260,7 +1273,7 @@
       dealerTypes: DEALER_TYPES, dealers: dealers,
       codes: codes,
       millBatches: ops.millBatches, atomizerRuns: ops.atomizerRuns, glazeBatches: ops.glazeBatches,
-      shiftReports: ops.shiftReports, downtimeEvents: ops.downtimeEvents, sortingLots: ops.sortingLots, labTests: ops.labTests, productionPlan: ops.productionPlan,
+      shiftReports: ops.shiftReports, downtimeEvents: ops.downtimeEvents, sortingLots: ops.sortingLots, defectOccurrences: ops.defectOccurrences, labTests: ops.labTests, productionPlan: ops.productionPlan,
       salesOrders: ops.salesOrders, dispatchLoads: ops.dispatchLoads, purchaseOrders: ops.purchaseOrders, workOrders: ops.workOrders,
       energyReadings: ops.energyReadings, attendance: ops.attendance, safetyIncidents: ops.safetyIncidents,
       incidents: { l1MaintFrom: L1_MAINT_FROM, l1MaintTo: L1_MAINT_TO, l2IssueFrom: L2_ISSUE_FROM, l2IssueTo: L2_ISSUE_TO },
@@ -1270,7 +1283,7 @@
       warehouses: whs.length, suppliers: suppliers.length, assets: assets.length, spareParts: spareParts.length,
       departments: people.departments.length, employees: people.employees.length, dealers: dealers.length,
       defects: codes.defects.length, downtime: codes.downtime.length, tests: codes.tests.length,
-      shiftReports: ops.shiftReports.length, downtimeEvents: ops.downtimeEvents.length, sortingLots: ops.sortingLots.length, labTests: ops.labTests.length,
+      shiftReports: ops.shiftReports.length, downtimeEvents: ops.downtimeEvents.length, sortingLots: ops.sortingLots.length, defectOccurrences: ops.defectOccurrences.length, labTests: ops.labTests.length,
       salesOrders: ops.salesOrders.length, dispatchLoads: ops.dispatchLoads.length, purchaseOrders: ops.purchaseOrders.length, workOrders: ops.workOrders.length,
       energyReadings: ops.energyReadings.length, attendance: ops.attendance.length, safetyIncidents: ops.safetyIncidents.length,
     };

@@ -4,6 +4,7 @@
 
   var DB = globalThis.CeramicData.generate();
   var PAGE_SIZE = 25;
+  var DONE_PHASES = ['A1', 'A2'];
 
   // ================================================================ i18n
   var UI = {
@@ -33,9 +34,11 @@
       'c.capacity': 'السعة', 'c.areaM2': 'المساحة م²', 'c.country': 'الدولة', 'c.terms': 'شروط الدفع', 'c.rating': 'التقييم', 'c.gov': 'المحافظة', 'c.region': 'المنطقة', 'c.rep': 'المندوب',
       'c.credit': 'حد الائتمان', 'c.class': 'الفئة', 'c.dept': 'القسم', 'c.title': 'الوظيفة', 'c.shift': 'الوردية', 'c.hired': 'تاريخ التعيين', 'c.stage': 'المرحلة', 'c.standard': 'المعيار',
       'c.source': 'مصدر العيب', 'c.level': 'المستوى', 'pm.unit.hours': 'ساعة', 'pm.unit.strokes': 'كبسة', 'pm.overdue': 'متأخرة', 'pm.atMeter': 'عند {n} {u}', 'c.planned': 'مخطط؟', 'c.days': '{n} يوم', 'c.target': 'المستهدف السنوي',
+      'c.date': 'التاريخ', 'c.product': 'المنتج', 'c.pressedM2': 'مكبوس م²', 'c.kilnOutM2': 'خارج الفرن م²', 'c.firstPct': 'فرز أول٪', 'c.downtimeMin': 'توقف (دقيقة)', 'c.gasM3': 'غاز م³',
+      'c.test': 'الاختبار', 'c.value': 'القيمة', 'c.result': 'النتيجة', 'c.ref': 'المرجع',
       // statuses
       's.active': 'نشط', 's.new': 'جديد', 's.discontinued': 'متوقف', 's.running': 'شغال', 's.maintenance': 'في الصيانة', 's.standby': 'احتياطي', 's.onLeave': 'إجازة', 's.suspended': 'موقوف',
-      's.creditHold': 'موقوف ائتمانيًا', 's.inactive': 'غير نشط', 's.belowMin': 'تحت الحد', 's.ok': 'كافي', 's.critical': 'حرجة',
+      's.creditHold': 'موقوف ائتمانيًا', 's.inactive': 'غير نشط', 's.belowMin': 'تحت الحد', 's.ok': 'كافي', 's.critical': 'حرجة', 's.pass': 'مطابق', 's.fail': 'غير مطابق',
       'pm.hours': 'كل {n} ساعة تشغيل', 'pm.strokes': 'كل {n} كبسة', 'pm.calendar': 'كل {n} يوم',
       'lvl.manager': 'مدير', 'lvl.professional': 'أخصائي/مهندس', 'lvl.supervisor': 'مشرف', 'lvl.technician': 'فني', 'lvl.worker': 'عامل',
       'origin.local': 'محلي', 'origin.imported': 'مستورد', 'cash': 'نقدي', 'body': 'جسم', 'glaze': 'جليز', 'anyEquipment': 'كل المعدات (عام)',
@@ -50,7 +53,22 @@
       'p.dealers': 'التجار والعملاء', 'p.dealers.sub': 'التجار والموزعين والمقاولين والمشروعات والتصدير، بحدود الائتمان والمناديب.',
       'p.employees': 'العاملين', 'p.employees.sub': 'العاملين بأقسامهم ووظائفهم ووردياتهم.',
       'p.codes': 'الأكواد والمعايير', 'p.codes.sub': 'أكواد العيوب وأسباب التوقف واختبارات الجودة ومواصفاتها.',
+      'p.shiftReports': 'تقارير الورديات', 'p.shiftReports.sub': 'إنتاج كل وردية على كل خط، بالفرز والتوقف واستهلاك الغاز.',
+      'p.labTests': 'اختبارات المعمل', 'p.labTests.sub': 'اختبارات الخامات الواردة وأثناء التشغيل والمنتج التام بنتائجها.',
       'tab.defects': 'أكواد العيوب', 'tab.downtime': 'أسباب التوقف', 'tab.tests': 'اختبارات الجودة',
+      // A2 dashboards
+      'exec.sub': 'لوحة صباحية: الإنتاج والفرز والمبيعات والتحصيل والتنبيهات اللي محتاجة قرار.',
+      'exec.kpi.todayM2': 'م² خارج الفرن اليوم', 'exec.kpi.first7': 'فرز أول (٧ أيام)', 'exec.kpi.sold30': 'م² مباعة (٣٠ يوم)', 'exec.kpi.revenue30': 'مبيعات (٣٠ يوم)',
+      'exec.kpi.gas7': 'غاز لكل م² (٧ أيام)', 'exec.gasUnit': 'م³/م²', 'exec.kpi.creditHold': 'تجار موقوفين ائتمانيًا', 'exec.kpi.openWork': 'أوامر شغل مفتوحة', 'exec.kpi.openSafety': 'حوادث سلامة مفتوحة',
+      'exec.trendTitle': 'إنتاج خارج الفرن — آخر ٤٥ يوم', 'exec.regionTitle': 'المبيعات حسب المنطقة (٣٠ يوم)', 'exec.alertsTitle': 'تنبيهات محتاجة قرار',
+      'exec.alert.creditHold': '{n} تاجر موقوف ائتمانيًا', 'exec.alert.blockedOrders': 'طلبيات محجوزة بسبب الائتمان', 'exec.alert.awaitingPO': '{n} طلب شراء مستني اعتماد',
+      'exec.alert.openWork': '{n} أمر شغل صيانة مفتوح', 'exec.alert.openSafety': '{n} حادث سلامة مفتوح', 'dash.noAlerts': 'كل حاجة تمام، مفيش تنبيهات دلوقتي.', 'common.dash': 'مفيش بيانات كفاية لسه.',
+      'prod.sub': 'كفاءة الخطوط والتوقف والفرز الأول على مستوى آخر أسبوع.', 'prod.kpi.kilnOut7': 'خارج الفرن م² (٧ أيام)', 'prod.kpi.first7': 'فرز أول (٧ أيام)',
+      'prod.kpi.utilization': 'استغلال الطاقة', 'prod.kpi.downHours': 'ساعات التوقف (٧ أيام)', 'prod.hoursUnit': 'ساعة', 'prod.minUnit': 'دقيقة',
+      'prod.byLineTitle': 'الإنتاج حسب الخط (٧ أيام)', 'prod.downtimeTitle': 'التوقف حسب السبب (٣٠ يوم)', 'prod.trendTitle': 'دقائق التوقف اليومية — آخر ٤٥ يوم', 'prod.shiftLogTitle': 'سجل تقارير الورديات',
+      'qual.sub': 'نسبة نجاح الاختبارات وأكثر العيوب تكرارًا والتقارير المفتوحة.', 'qual.kpi.first7': 'فرز أول (٧ أيام)', 'qual.kpi.passRate30': 'نجاح الاختبارات (٣٠ يوم)',
+      'qual.kpi.openNcr': 'تقارير عدم مطابقة مفتوحة', 'qual.kpi.downgraded30': 'م² متنازل عنها (٣٠ يوم)', 'qual.defectTitle': 'أكثر العيوب (٣٠ يوم)', 'qual.passTrendTitle': 'نسبة نجاح اختبار المنتج التام — آخر ٤٥ يوم',
+      'qual.ncrTitle': 'تقارير عدم المطابقة المفتوحة', 'qual.noNcr': 'مفيش تقارير عدم مطابقة مفتوحة.', 'qual.labLogTitle': 'سجل اختبارات المعمل',
       // drawer
       'd.packing': 'التعبئة', 'd.pcsBox': 'بلاطة في الكرتونة', 'd.m2Box': 'م² في الكرتونة', 'd.kgBox': 'وزن الكرتونة', 'd.boxesPallet': 'كرتونة في الباليتة', 'd.m2Pallet': 'م² في الباليتة',
       'd.thickness': 'السُمك', 'd.prices': 'الأسعار حسب الفرز وقائمة الأسعار', 'd.perBox': 'للكرتونة', 'd.margin': 'هامش الفرز الأول', 'd.production': 'الإنتاج',
@@ -62,7 +80,11 @@
       'd.account': 'الحساب', 'd.salesLater': 'الطلبيات والمديونية والتحصيل بتظهر في الدفعة A4.', 'd.tenure': 'مدة الخدمة', 'd.years': '{n} سنة', 'd.paymentMethod': 'طريقة الدفع',
       'd.priceList': 'قائمة الأسعار', 'd.since': 'عميل من', 'd.contact': 'البيانات', 'd.leadTime': 'مدة التوريد', 'd.slipDensity': 'كثافة الروبة جم/لتر', 'd.residue': 'متبقي منخل 63 ميكرون %',
       'd.powderMoisture': 'رطوبة البودرة %', 'd.slipWater': 'مية الروبة %', 'd.density': 'الكثافة جم/لتر', 'd.viscosity': 'اللزوجة (ثانية)', 'd.itemsCount': '{n} صنف', 'd.belowMinCount': '{n} تحت الحد',
+      'd.pressed': 'مكبوس', 'd.kilnIn': 'داخل الفرن', 'd.kilnOut': 'خارج الفرن', 'd.first': 'فرز أول', 'd.commercial': 'تجاري', 'd.second': 'فرز ثاني', 'd.downtimeMin': 'دقائق التوقف',
+      'd.gas': 'استهلاك الغاز', 'd.supervisor': 'مشرف الوردية', 'd.downtimeEvents': 'أحداث التوقف', 'd.shiftDefects': 'العيوب المسجلة', 'd.testStandard': 'المعيار', 'd.testSpec': 'المواصفة',
+      'd.testValue': 'القيمة المقاسة', 'd.testRef': 'المرجع', 'd.testBy': 'قام بالاختبار',
       'k.product': 'منتج', 'k.material': 'خامة', 'k.recipe': 'تركيبة', 'k.asset': 'معدة', 'k.part': 'قطعة غيار', 'k.warehouse': 'مخزن', 'k.supplier': 'مورد', 'k.dealer': 'عميل', 'k.employee': 'موظف',
+      'k.shiftReport': 'تقرير وردية', 'k.labTest': 'اختبار معمل',
     },
     en: {
       'brand.sub': 'Factory management system', 'demo.note': 'Demo — every name and number here is fictional and belongs to no real factory.', 'demo.tag': 'Demo',
@@ -88,8 +110,10 @@
       'c.capacity': 'Capacity', 'c.areaM2': 'Area m²', 'c.country': 'Country', 'c.terms': 'Payment terms', 'c.rating': 'Rating', 'c.gov': 'Governorate', 'c.region': 'Region', 'c.rep': 'Sales rep',
       'c.credit': 'Credit limit', 'c.class': 'Class', 'c.dept': 'Department', 'c.title': 'Job title', 'c.shift': 'Shift', 'c.hired': 'Hired', 'c.stage': 'Stage', 'c.standard': 'Standard',
       'c.source': 'Defect source', 'c.level': 'Level', 'pm.unit.hours': 'hours', 'pm.unit.strokes': 'strokes', 'pm.overdue': 'Overdue', 'pm.atMeter': 'at {n} {u}', 'c.planned': 'Planned?', 'c.days': '{n} days', 'c.target': 'Annual target',
+      'c.date': 'Date', 'c.product': 'Product', 'c.pressedM2': 'Pressed m²', 'c.kilnOutM2': 'Kiln-out m²', 'c.firstPct': 'First-choice %', 'c.downtimeMin': 'Downtime (min)', 'c.gasM3': 'Gas m³',
+      'c.test': 'Test', 'c.value': 'Value', 'c.result': 'Result', 'c.ref': 'Reference',
       's.active': 'Active', 's.new': 'New', 's.discontinued': 'Discontinued', 's.running': 'Running', 's.maintenance': 'In maintenance', 's.standby': 'Standby', 's.onLeave': 'On leave', 's.suspended': 'Suspended',
-      's.creditHold': 'Credit hold', 's.inactive': 'Inactive', 's.belowMin': 'Below minimum', 's.ok': 'Sufficient', 's.critical': 'Critical',
+      's.creditHold': 'Credit hold', 's.inactive': 'Inactive', 's.belowMin': 'Below minimum', 's.ok': 'Sufficient', 's.critical': 'Critical', 's.pass': 'Pass', 's.fail': 'Fail',
       'pm.hours': 'Every {n} running hours', 'pm.strokes': 'Every {n} strokes', 'pm.calendar': 'Every {n} days',
       'lvl.manager': 'Manager', 'lvl.professional': 'Professional', 'lvl.supervisor': 'Supervisor', 'lvl.technician': 'Technician', 'lvl.worker': 'Worker',
       'origin.local': 'Local', 'origin.imported': 'Imported', 'cash': 'Cash', 'body': 'Body', 'glaze': 'Glaze', 'anyEquipment': 'Any equipment (general)',
@@ -103,7 +127,22 @@
       'p.dealers': 'Dealers & customers', 'p.dealers.sub': 'Dealers, distributors, contractors, projects and export, with credit limits and reps.',
       'p.employees': 'Employees', 'p.employees.sub': 'Staff by department, job and shift.',
       'p.codes': 'Codes & standards', 'p.codes.sub': 'Defect codes, downtime reasons and quality tests with their specifications.',
+      'p.shiftReports': 'Shift reports', 'p.shiftReports.sub': 'Every shift on every line, with grade output, downtime and gas use.',
+      'p.labTests': 'Lab tests', 'p.labTests.sub': 'Incoming, in-process and finished-product tests with their results.',
       'tab.defects': 'Defect codes', 'tab.downtime': 'Downtime reasons', 'tab.tests': 'Quality tests',
+      // A2 dashboards
+      'exec.sub': 'A morning board: output, grades, sales, collections, and the alerts that need a decision.',
+      'exec.kpi.todayM2': 'm² out of kiln today', 'exec.kpi.first7': 'First-choice rate (7d)', 'exec.kpi.sold30': 'm² sold (30d)', 'exec.kpi.revenue30': 'Sales (30d)',
+      'exec.kpi.gas7': 'Gas per m² (7d)', 'exec.gasUnit': 'm³/m²', 'exec.kpi.creditHold': 'Dealers on credit hold', 'exec.kpi.openWork': 'Open maintenance orders', 'exec.kpi.openSafety': 'Open safety incidents',
+      'exec.trendTitle': 'Kiln-out output — last 45 days', 'exec.regionTitle': 'Sales by region (30d)', 'exec.alertsTitle': 'Alerts that need a decision',
+      'exec.alert.creditHold': '{n} dealer(s) on credit hold', 'exec.alert.blockedOrders': 'Orders blocked on credit', 'exec.alert.awaitingPO': '{n} purchase request(s) awaiting approval',
+      'exec.alert.openWork': '{n} open maintenance work order(s)', 'exec.alert.openSafety': '{n} open safety incident(s)', 'dash.noAlerts': 'All clear — no alerts right now.', 'common.dash': 'Not enough data yet.',
+      'prod.sub': 'Line efficiency, downtime and first-choice rate over the last week.', 'prod.kpi.kilnOut7': 'Kiln-out m² (7d)', 'prod.kpi.first7': 'First-choice rate (7d)',
+      'prod.kpi.utilization': 'Capacity utilization', 'prod.kpi.downHours': 'Downtime hours (7d)', 'prod.hoursUnit': 'hours', 'prod.minUnit': 'min',
+      'prod.byLineTitle': 'Output by line (7d)', 'prod.downtimeTitle': 'Downtime by reason (30d)', 'prod.trendTitle': 'Daily downtime minutes — last 45 days', 'prod.shiftLogTitle': 'Shift report log',
+      'qual.sub': 'Test pass rate, the most frequent defects and open non-conformance reports.', 'qual.kpi.first7': 'First-choice rate (7d)', 'qual.kpi.passRate30': 'Test pass rate (30d)',
+      'qual.kpi.openNcr': 'Open non-conformance reports', 'qual.kpi.downgraded30': 'm² downgraded (30d)', 'qual.defectTitle': 'Most frequent defects (30d)', 'qual.passTrendTitle': 'Finished-product pass rate — last 45 days',
+      'qual.ncrTitle': 'Open non-conformance reports', 'qual.noNcr': 'No open non-conformance reports.', 'qual.labLogTitle': 'Lab test log',
       'd.packing': 'Packing', 'd.pcsBox': 'Tiles per box', 'd.m2Box': 'm² per box', 'd.kgBox': 'Box weight', 'd.boxesPallet': 'Boxes per pallet', 'd.m2Pallet': 'm² per pallet',
       'd.thickness': 'Thickness', 'd.prices': 'Prices by grade and price list', 'd.perBox': 'per box', 'd.margin': 'First-choice margin', 'd.production': 'Production',
       'd.bodyRecipe': 'Body recipe', 'd.glazeRecipe': 'Glaze recipe', 'd.faces': 'Design faces', 'd.ink': 'Ink', 'd.glazeWeight': 'Glaze', 'd.absorption': 'Absorption group (ISO 13006)',
@@ -114,7 +153,11 @@
       'd.account': 'Account', 'd.salesLater': 'Orders, balance and collections appear in phase A4.', 'd.tenure': 'Service', 'd.years': '{n} years', 'd.paymentMethod': 'Payment method',
       'd.priceList': 'Price list', 'd.since': 'Customer since', 'd.contact': 'Details', 'd.leadTime': 'Lead time', 'd.slipDensity': 'Slip density g/L', 'd.residue': 'Residue on 63 µm %',
       'd.powderMoisture': 'Powder moisture %', 'd.slipWater': 'Slip water %', 'd.density': 'Density g/L', 'd.viscosity': 'Viscosity (s)', 'd.itemsCount': '{n} items', 'd.belowMinCount': '{n} below minimum',
+      'd.pressed': 'Pressed', 'd.kilnIn': 'Kiln-in', 'd.kilnOut': 'Kiln-out', 'd.first': 'First choice', 'd.commercial': 'Commercial', 'd.second': 'Second choice', 'd.downtimeMin': 'Downtime minutes',
+      'd.gas': 'Gas used', 'd.supervisor': 'Shift supervisor', 'd.downtimeEvents': 'Downtime events', 'd.shiftDefects': 'Logged defects', 'd.testStandard': 'Standard', 'd.testSpec': 'Specification',
+      'd.testValue': 'Measured value', 'd.testRef': 'Reference', 'd.testBy': 'Tested by',
       'k.product': 'Product', 'k.material': 'Material', 'k.recipe': 'Recipe', 'k.asset': 'Machine', 'k.part': 'Spare part', 'k.warehouse': 'Warehouse', 'k.supplier': 'Supplier', 'k.dealer': 'Customer', 'k.employee': 'Employee',
+      'k.shiftReport': 'Shift report', 'k.labTest': 'Lab test',
     },
   };
 
@@ -154,6 +197,8 @@
   function year(n) { return new Intl.NumberFormat(numLocale(), { useGrouping: false }).format(n); }
   function pct() { return state.locale === 'ar' ? '٪' : '%'; }
   function m2() { return state.locale === 'ar' ? 'م²' : 'm²'; }
+  function m3() { return state.locale === 'ar' ? 'م³' : 'm³'; }
+  function round2(n) { return Math.round(n * 100) / 100; }
   function money(n) { return num(n) + ' ' + t('egp'); }
   function date(iso) { return new Date(iso + 'T00:00:00Z').toLocaleDateString(state.locale === 'ar' ? 'ar-EG-u-nu-latn' : 'en-GB', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }); }
   function normalize(s) {
@@ -165,12 +210,17 @@
 
   // ================================================================ lookups
   var by = {};
-  ['products', 'materials', 'suppliers', 'assets', 'spareParts', 'warehouses', 'dealers', 'employees', 'departments'].forEach(function (k) {
+  [
+    'products', 'materials', 'suppliers', 'assets', 'spareParts', 'warehouses', 'dealers', 'employees', 'departments',
+    'shiftReports', 'sortingLots', 'salesOrders', 'dispatchLoads', 'purchaseOrders', 'workOrders', 'millBatches', 'atomizerRuns', 'glazeBatches', 'labTests', 'productionPlan',
+  ].forEach(function (k) {
     by[k] = {}; DB[k].forEach(function (x) { by[k][x.id] = x; });
   });
   by.recipes = {};
   DB.recipes.body.forEach(function (r) { r.kind = 'body'; by.recipes[r.id] = r; });
   DB.recipes.glaze.forEach(function (r) { r.kind = 'glaze'; by.recipes[r.id] = r; });
+  by.defects = {}; DB.codes.defects.forEach(function (d) { by.defects[d.id] = d; });
+  by.tests = {}; DB.codes.tests.forEach(function (q) { by.tests[q.id] = q; });
   var allRecipes = DB.recipes.body.concat(DB.recipes.glaze);
   var LINE = {}; DB.lines.forEach(function (l) { LINE[l.id] = l; });
   var DESIGN = {}; DB.designs.forEach(function (d) { DESIGN[d.id] = d; });
@@ -221,7 +271,7 @@
   function b(ar, en) { return { ar: ar, en: en }; }
   var GROUPS = ['overview', 'production', 'quality', 'commercial', 'support', 'master'];
   var MODULES = [
-    { id: 'exec', group: 'overview', phase: 'A2', icon: 'chart', name: b('الإدارة العليا', 'Executive'),
+    { id: 'exec', group: 'overview', icon: 'chart', name: b('الإدارة العليا', 'Executive'),
       screens: [b('لوحة الصباح: إنتاج وفرز ومبيعات وتحصيل', 'Morning board: output, grades, sales, collections'), b('مقارنة الشهر بالخطة', 'Month against plan'), b('التنبيهات اللي محتاجة قرار', 'Alerts that need a decision'), b('موافقات الخصم وتجاوز الائتمان', 'Discount and credit-limit approvals')],
       kpis: [b('إنتاج م² اليوم والشهر', 'm² today and month to date'), b('نسبة الفرز الأول', 'First-choice rate'), b('المبيعات والتحصيل', 'Sales and collections'), b('غاز م³ لكل م²', 'Gas m³ per m²'), b('أيام تغطية المخزون', 'Days of stock cover')],
       uses: ['products', 'dealers', 'assets'] },
@@ -234,13 +284,13 @@
     { id: 'glaze', group: 'production', phase: 'A3', icon: 'drop', name: b('الجليز والتصميمات', 'Glaze & designs'),
       screens: [b('تشغيلات الجليز والإنجوب', 'Glaze and engobe batches'), b('مكتبة التصميمات بإصداراتها ووجوهها', 'Design library with versions and faces'), b('أرصدة الأحبار لكل لون', 'Ink stock by colour'), b('أوزان الطبقات لكل منتج', 'Layer weights per product')],
       kpis: [b('جم حبر لكل م²', 'Ink g/m²'), b('كجم جليز لكل م²', 'Glaze kg/m²'), b('مبيعات كل تصميم', 'Sales by design')], uses: ['recipes', 'products', 'materials'] },
-    { id: 'lines', group: 'production', phase: 'A2', icon: 'factory', name: b('خطوط الإنتاج', 'Production lines'),
+    { id: 'lines', group: 'production', icon: 'factory', name: b('خطوط الإنتاج', 'Production lines'),
       screens: [b('تقرير الوردية لكل خط', 'Shift report per line'), b('قراءات المكبس والفرن', 'Press and kiln readings'), b('التوقفات بأسبابها', 'Downtime with reasons'), b('الكسر في كل مرحلة', 'Breakage at each stage'), b('شاشة تابلت للعامل', 'Operator tablet screen')],
       kpis: [b('كفاءة المعدات الكلية', 'Overall equipment effectiveness'), b('ساعات التوقف', 'Downtime hours'), b('م² في الساعة', 'm² per hour'), b('كسر أخضر ومحروق', 'Green and fired breakage')], uses: ['assets', 'codes', 'products', 'employees'] },
     { id: 'sorting', group: 'production', phase: 'A3', icon: 'layers', name: b('الفرز والتعبئة', 'Sorting & packing'),
       screens: [b('ناتج الفرز بالفرز ودرجة اللون والمقاس', 'Sorting output by grade, shade and caliber'), b('إنشاء لوط وملصق باليتة بباركود', 'Lot creation and barcoded pallet label'), b('التحويل للمخزن التام', 'Transfer to finished goods'), b('إعادة الفرز', 'Re-sorting')],
       kpis: [b('توزيع الفروز', 'Grade mix'), b('درجات اللون في اللوط', 'Shades per lot'), b('باليتات في الوردية', 'Pallets per shift')], uses: ['products', 'codes'] },
-    { id: 'quality', group: 'quality', phase: 'A2', icon: 'flask', name: b('الجودة والمعمل', 'Quality & lab'),
+    { id: 'quality', group: 'quality', icon: 'flask', name: b('الجودة والمعمل', 'Quality & lab'),
       screens: [b('فحص الخامات الواردة', 'Incoming inspection'), b('فحوص أثناء التشغيل', 'In-process checks'), b('اختبارات المنتج التام', 'Finished-product tests'), b('حجز لوط وتقرير عدم مطابقة', 'Lot hold and non-conformance report'), b('شهادة مطابقة للتصدير', 'Export certificate of conformity')],
       kpis: [b('نسبة نجاح الاختبارات', 'Test pass rate'), b('أكثر العيوب تكرارًا', 'Most frequent defects'), b('تقارير مفتوحة', 'Open reports'), b('شكاوى التجار', 'Dealer complaints')], uses: ['codes', 'products', 'materials'] },
     { id: 'stores', group: 'commercial', phase: 'A4', icon: 'box', name: b('المخازن والمنتج التام', 'Stores & finished goods'),
@@ -474,6 +524,40 @@
         { key: 'status', label: 'c.status', sort: function (e) { return t('s.' + e.status); }, cell: function (e) { return statusChip(e.status); } },
       ],
     },
+    shiftReports: {
+      kind: 'shiftReport', rows: function () { return DB.shiftReports; },
+      search: function (s) { return s.id + ' ' + s.line + ' ' + s.date + ' ' + s.shift + ' ' + L(by.products[s.productId].name); },
+      filters: [
+        { key: 'line', label: 'c.line', options: function () { return DB.lines.map(function (l) { return [l.id, L(l.name)]; }); }, test: function (s, v) { return s.line === v; } },
+        { key: 'shift', label: 'c.shift', options: function () { return DB.company.shifts.map(function (sh) { return [sh.id, L(sh.name)]; }); }, test: function (s, v) { return s.shift === v; } },
+      ],
+      columns: [
+        { key: 'date', label: 'c.date', sort: function (s) { return s.date; }, cell: function (s) { return '<span class="num small">' + esc(date(s.date)) + '</span>'; } },
+        { key: 'line', label: 'c.line', sort: function (s) { return L(LINE[s.line].name); }, cell: function (s) { return esc(L(LINE[s.line].name)); } },
+        { key: 'shift', label: 'c.shift', sort: function (s) { return s.shift; }, cell: function (s) { return esc(L(DB.company.shifts.filter(function (sh) { return sh.id === s.shift; })[0].name)); } },
+        { key: 'product', label: 'c.product', sort: function (s) { return L(by.products[s.productId].name); }, cell: function (s) { return esc(L(by.products[s.productId].name)); } },
+        { key: 'pressed', label: 'c.pressedM2', end: true, sort: function (s) { return s.pressedM2; }, cell: function (s) { return '<span class="num">' + num(s.pressedM2) + '</span>'; } },
+        { key: 'kilnOut', label: 'c.kilnOutM2', end: true, sort: function (s) { return s.kilnOutM2; }, cell: function (s) { return '<span class="num">' + num(s.kilnOutM2) + '</span>'; } },
+        { key: 'firstPct', label: 'c.firstPct', end: true, sort: function (s) { return s.kilnOutM2 ? s.firstM2 / s.kilnOutM2 : 0; }, cell: function (s) { return '<span class="num">' + (s.kilnOutM2 ? num(Math.round(s.firstM2 / s.kilnOutM2 * 100)) : '—') + pct() + '</span>'; } },
+        { key: 'down', label: 'c.downtimeMin', end: true, sort: function (s) { return s.downtimeMinutes; }, cell: function (s) { return '<span class="num">' + num(s.downtimeMinutes) + '</span>'; } },
+        { key: 'gas', label: 'c.gasM3', end: true, sort: function (s) { return s.gasM3; }, cell: function (s) { return '<span class="num">' + num(s.gasM3) + '</span>'; } },
+      ],
+    },
+    labTests: {
+      kind: 'labTest', rows: function () { return DB.labTests; },
+      search: function (q) { return q.id + ' ' + L(by.tests[q.testCodeId].name) + ' ' + q.stage; },
+      filters: [
+        { key: 'stage', label: 'c.stage', options: function () { return ['incoming', 'process', 'finished'].map(function (k) { return [k, L(DB.codes.testStages[k])]; }); }, test: function (q, v) { return q.stage === v; } },
+        { key: 'result', label: 'c.result', options: function () { return [['pass', t('s.pass')], ['fail', t('s.fail')]]; }, test: function (q, v) { return (v === 'pass') === q.pass; } },
+      ],
+      columns: [
+        { key: 'date', label: 'c.date', sort: function (q) { return q.date; }, cell: function (q) { return '<span class="num small">' + esc(date(q.date)) + '</span>'; } },
+        { key: 'test', label: 'c.test', sort: function (q) { return L(by.tests[q.testCodeId].name); }, cell: function (q) { return esc(L(by.tests[q.testCodeId].name)); } },
+        { key: 'stage', label: 'c.stage', sort: function (q) { return L(DB.codes.testStages[q.stage]); }, cell: function (q) { return esc(L(DB.codes.testStages[q.stage])); } },
+        { key: 'value', label: 'c.value', end: true, sort: function (q) { return q.value; }, cell: function (q) { return '<span class="num">' + num(q.value, 2) + '</span>'; } },
+        { key: 'result', label: 'c.result', sort: function (q) { return q.pass ? 0 : 1; }, cell: function (q) { return q.pass ? chip(t('s.pass'), 'pos') : chip(t('s.fail'), 'bad'); } },
+      ],
+    },
   };
 
   function listState(id) { return state.lists[id] || (state.lists[id] = { q: '', f: {}, sort: null, dir: 1, page: 1 }); }
@@ -491,13 +575,14 @@
     }
     return rows;
   }
-  function renderListPage(id) {
+  function renderListPage(id, embed) {
     var def = LISTS[id], st = listState(id);
     var filters = def.filters.map(function (f) {
       return '<select data-filter="' + f.key + '" data-list="' + id + '" aria-label="' + esc(t(f.label)) + '"><option value="">' + esc(t(f.label)) + ': ' + esc(t('all')) + '</option>' +
         f.options().map(function (o) { return '<option value="' + esc(o[0]) + '"' + (st.f[f.key] === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>';
     }).join('');
-    return pageHead(t('p.' + id), t('p.' + id + '.sub'), 'g.master') +
+    var head = embed ? '' : pageHead(t('p.' + id), t('p.' + id + '.sub'), 'g.master');
+    return head +
       '<div class="toolbar"><label class="search">' + icon('search', 15) + '<input type="search" id="search-' + id + '" data-search="' + id + '" value="' + esc(st.q) + '" placeholder="' + esc(t('search')) + '" aria-label="' + esc(t('search')) + '"></label>' + filters + '</div>' +
       '<div id="listBody">' + renderListBody(id) + '</div>';
   }
@@ -532,6 +617,68 @@
   // ================================================================ pages
   function pageHead(title, sub, groupKey, extra) {
     return '<header class="page-head"><div class="titles"><span class="eyebrow">' + esc(t(groupKey)) + '</span><h1>' + esc(title) + '</h1>' + (sub ? '<p>' + esc(sub) + '</p>' : '') + '</div>' + (extra || '') + '</header>';
+  }
+
+  // ---- dashboard building blocks: one trend line, one ranked-bar list, one KPI row, one alert list ----
+  function dateRange(fromIso, toIso) {
+    var out = [], d = Date.parse(fromIso + 'T00:00:00Z'), end = Date.parse(toIso + 'T00:00:00Z');
+    while (d <= end) { out.push(new Date(d).toISOString().slice(0, 10)); d += 864e5; }
+    return out;
+  }
+  var WINDOW = dateRange(DB.windowStart, DB.referenceDate);
+  function sumField(arr, field) { return arr.reduce(function (s, x) { return s + (x[field] || 0); }, 0); }
+  function statTiles(items) {
+    return '<div class="stats">' + items.map(function (it) { return '<div class="stat"><span class="v">' + it.value + '</span><span class="l">' + esc(it.label) + '</span></div>'; }).join('') + '</div>';
+  }
+  /** A single-hue trend line with an area fill and a hover title per point (DESIGN reference: one axis, one series, no dual scales). */
+  function trendChart(points, opts) {
+    opts = opts || {};
+    if (!points.length) return '<p class="muted small">' + esc(t('common.dash')) + '</p>';
+    var w = opts.width || 600, h = opts.height || 140, pad = 20, n = points.length;
+    var values = points.map(function (p) { return p.value; });
+    var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+    if (min === max) { var pad2 = Math.max(1, Math.abs(min) * 0.1); min -= pad2; max += pad2; }
+    var range = max - min;
+    function x(i) { return n <= 1 ? w / 2 : pad + (i * (w - pad * 2) / (n - 1)); }
+    function y(v) { return h - pad - ((v - min) / range) * (h - pad * 2); }
+    var color = opts.color || 'var(--accent)';
+    var fmt = opts.format || function (v) { return num(v); };
+    var coords = points.map(function (p, i) { return x(i).toFixed(1) + ',' + y(p.value).toFixed(1); });
+    var area = 'M' + x(0).toFixed(1) + ',' + (h - pad) + ' L' + coords.join(' L ') + ' L' + x(n - 1).toFixed(1) + ',' + (h - pad) + ' Z';
+    var dots = points.map(function (p, i) {
+      return '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p.value).toFixed(1) + '" r="2.4" fill="' + color + '"><title>' + esc(date(p.date)) + ': ' + esc(fmt(p.value)) + '</title></circle>';
+    }).join('');
+    return '<div class="trend"><svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" role="img" aria-label="' + esc(opts.label || '') + '">' +
+      '<line x1="' + pad + '" y1="' + (h - pad) + '" x2="' + (w - pad) + '" y2="' + (h - pad) + '" stroke="var(--border)" stroke-width="1"/>' +
+      '<path d="' + area + '" fill="' + color + '" opacity="0.14" stroke="none"/>' +
+      '<polyline points="' + coords.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="2"/>' + dots + '</svg>' +
+      '<div class="trend-foot"><span class="muted small">' + esc(date(points[0].date)) + '</span><span class="muted small">' + esc(date(points[n - 1].date)) + '</span></div></div>';
+  }
+  /** Magnitude across categories: one hue, sorted by the caller, direct value labels (dataviz: ranked bars, not a rainbow). */
+  function rankBars(rows, opts) {
+    opts = opts || {};
+    if (!rows.length) return '<p class="muted small">' + esc(t('common.dash')) + '</p>';
+    var max = Math.max.apply(null, rows.map(function (r) { return r.value; })) || 1;
+    var fmt = opts.format || num;
+    return '<div class="bars">' + rows.map(function (r) {
+      var style = 'width:' + (r.value / max * 100).toFixed(1) + '%' + (r.tone ? ';background:var(--' + r.tone + ')' : '');
+      return '<div class="bar-row"><span>' + esc(r.label) + '</span><div class="bar-track"><div class="bar-fill" style="' + style + '"></div></div><span class="num" style="text-align:end">' + esc(fmt(r.value)) + '</span></div>';
+    }).join('') + '</div>';
+  }
+  /** Status is never color alone: each row carries a dot plus its own label text, and is a real button to the page that explains it. */
+  function alertList(items) {
+    if (!items.length) return '<p class="muted small">' + esc(t('dash.noAlerts')) + '</p>';
+    return '<ul class="linklist">' + items.map(function (a) {
+      return '<li><button class="link alert-row" data-action="nav" data-id="' + a.target + '"><span class="dot ' + a.tone + '"></span>' + esc(a.text) + '</button></li>';
+    }).join('') + '</ul>';
+  }
+  function orderRevenue(o) {
+    var dealer = by.dealers[o.dealerId];
+    var pl = DB.priceLists.filter(function (p) { return p.id === dealer.priceList; })[0];
+    return o.lines.reduce(function (sum, l) {
+      var product = by.products[l.productId];
+      return sum + Math.round(price(product, l.grade) * pl.factor / 5) * 5 * l.m2;
+    }, 0);
   }
 
   function renderProfile() {
@@ -575,7 +722,7 @@
 
     var phases = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6'];
     var roadmap = '<div class="roadmap">' + phases.map(function (p) {
-      var now = p === 'A1';
+      var now = DONE_PHASES.indexOf(p) >= 0;
       return '<div class="rm' + (now ? ' now' : '') + '"><span class="t"><span>' + esc(t('phase', { p: p })) + '</span>' + (now ? '<span class="phase-tag done">' + esc(t('ready')) + '</span>' : '') + '</span><p>' + esc(t('rm.' + p)) + '</p></div>';
     }).join('') + '</div>';
 
@@ -611,6 +758,135 @@
         }).join('') + '</tbody></table>';
     }
     return pageHead(t('p.codes'), t('p.codes.sub'), 'g.master') + '<div class="tabs" role="tablist">' + tabs + '</div><div class="table-wrap">' + body + '</div>';
+  }
+
+  // ================================================================ A2 dashboards
+  function renderExecDashboard() {
+    var last7 = new Set(WINDOW.slice(-7)), last30 = new Set(WINDOW.slice(-30));
+    var todayReports = DB.shiftReports.filter(function (s) { return s.date === DB.referenceDate; });
+    var last7Reports = DB.shiftReports.filter(function (s) { return last7.has(s.date); });
+    var todayM2 = sumField(todayReports, 'kilnOutM2');
+    var first7 = sumField(last7Reports, 'firstM2'), kiln7 = sumField(last7Reports, 'kilnOutM2'), gas7 = sumField(last7Reports, 'gasM3');
+    var salesLast30 = DB.salesOrders.filter(function (o) { return last30.has(o.date); });
+    var m2Sold30 = sumField(salesLast30, 'totalM2');
+    var revenue30 = salesLast30.reduce(function (sum, o) { return sum + orderRevenue(o); }, 0);
+    var creditHold = DB.dealers.filter(function (d) { return d.status === 'creditHold'; });
+    var openSafety = DB.safetyIncidents.filter(function (x) { return !x.closed; });
+    var openWork = DB.workOrders.filter(function (w) { return w.status === 'open'; });
+    var awaitingPO = DB.purchaseOrders.filter(function (p) { return p.status === 'requested'; });
+    var blockedOrders = DB.salesOrders.filter(function (o) { return o.blockedOnCredit; });
+
+    var stats = statTiles([
+      { value: num(todayM2), label: t('exec.kpi.todayM2') },
+      { value: (kiln7 ? num(Math.round(first7 / kiln7 * 100)) : '—') + pct(), label: t('exec.kpi.first7') },
+      { value: num(m2Sold30), label: t('exec.kpi.sold30') },
+      { value: money(revenue30), label: t('exec.kpi.revenue30') },
+      { value: (kiln7 ? num(round2(gas7 / kiln7)) : '—') + ' ' + t('exec.gasUnit'), label: t('exec.kpi.gas7') },
+      { value: num(creditHold.length), label: t('exec.kpi.creditHold') },
+      { value: num(openWork.length), label: t('exec.kpi.openWork') },
+      { value: num(openSafety.length), label: t('exec.kpi.openSafety') },
+    ]);
+
+    var dailyTrend = WINDOW.map(function (date) { return { date: date, value: sumField(DB.shiftReports.filter(function (s) { return s.date === date; }), 'kilnOutM2') }; });
+
+    var regionSums = {};
+    salesLast30.forEach(function (o) { var d = by.dealers[o.dealerId]; regionSums[d.region] = (regionSums[d.region] || 0) + o.totalM2; });
+    var regionRows = Object.keys(regionSums).sort(function (a, b) { return regionSums[b] - regionSums[a]; }).slice(0, 7)
+      .map(function (k) { return { label: L(DB.regions[k]), value: regionSums[k] }; });
+
+    var alerts = [];
+    if (creditHold.length) alerts.push({ tone: 'bad', text: t('exec.alert.creditHold', { n: num(creditHold.length) }), target: 'dealers' });
+    if (blockedOrders.length) alerts.push({ tone: 'warn', text: t('exec.alert.blockedOrders', { n: num(blockedOrders.length) }), target: 'sales' });
+    if (awaitingPO.length) alerts.push({ tone: 'warn', text: t('exec.alert.awaitingPO', { n: num(awaitingPO.length) }), target: 'purchasing' });
+    if (openWork.length) alerts.push({ tone: 'warn', text: t('exec.alert.openWork', { n: num(openWork.length) }), target: 'maintenance' });
+    if (openSafety.length) alerts.push({ tone: 'bad', text: t('exec.alert.openSafety', { n: num(openSafety.length) }), target: 'safety' });
+
+    return pageHead(L(MODULE_BY_ID.exec.name), t('exec.sub'), 'g.overview') + stats +
+      '<div class="grid-2">' +
+        '<section class="card"><div class="section-title"><h2>' + esc(t('exec.trendTitle')) + '</h2></div>' + trendChart(dailyTrend, { color: 'var(--glaze)', format: function (v) { return num(v) + ' ' + m2(); }, label: t('exec.trendTitle') }) + '</section>' +
+        '<section class="card"><div class="section-title"><h2>' + esc(t('exec.regionTitle')) + '</h2></div>' + rankBars(regionRows, { format: function (v) { return num(v) + ' ' + m2(); } }) + '</section>' +
+      '</div>' +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('exec.alertsTitle')) + '</h2></div>' + alertList(alerts) + '</section>';
+  }
+
+  function renderProductionDashboard() {
+    var last7 = new Set(WINDOW.slice(-7)), last30 = new Set(WINDOW.slice(-30));
+    var last7Reports = DB.shiftReports.filter(function (s) { return last7.has(s.date); });
+    var last30Reports = DB.shiftReports.filter(function (s) { return last30.has(s.date); });
+    var pressed7 = sumField(last7Reports, 'pressedM2'), kiln7 = sumField(last7Reports, 'kilnOutM2'), first7 = sumField(last7Reports, 'firstM2');
+    var down7 = sumField(last7Reports, 'downtimeMinutes');
+    var theoretical7 = DB.lines.reduce(function (s, l) { return s + l.capacityM2Day; }, 0) / 3 * last7Reports.length / DB.lines.length;
+    var utilPct = theoretical7 ? Math.round(pressed7 / theoretical7 * 100) : 0;
+
+    var stats = statTiles([
+      { value: num(kiln7), label: t('prod.kpi.kilnOut7') },
+      { value: (kiln7 ? num(Math.round(first7 / kiln7 * 100)) : '—') + pct(), label: t('prod.kpi.first7') },
+      { value: num(utilPct) + pct(), label: t('prod.kpi.utilization') },
+      { value: num(round2(down7 / 60)) + ' ' + t('prod.hoursUnit'), label: t('prod.kpi.downHours') },
+    ]);
+
+    var byLine = DB.lines.map(function (l) {
+      var rows = last7Reports.filter(function (s) { return s.line === l.id; });
+      return { label: L(l.name), value: sumField(rows, 'kilnOutM2') };
+    });
+
+    var downtimeByCat = {};
+    DB.downtimeEvents.filter(function (e) { return last30.has(e.date); }).forEach(function (e) {
+      var cat = DB.codes.downtime.filter(function (c) { return c.id === e.codeId; })[0].category;
+      downtimeByCat[cat] = (downtimeByCat[cat] || 0) + e.minutes;
+    });
+    var downtimeRows = Object.keys(downtimeByCat).sort(function (a, b) { return downtimeByCat[b] - downtimeByCat[a]; })
+      .map(function (k) { return { label: L(DB.codes.downtimeCategories[k]), value: downtimeByCat[k] }; });
+
+    var dailyTrend = WINDOW.map(function (date) { return { date: date, value: sumField(DB.shiftReports.filter(function (s) { return s.date === date; }), 'downtimeMinutes') }; });
+
+    return pageHead(L(MODULE_BY_ID.lines.name), t('prod.sub'), 'g.production') + stats +
+      '<div class="grid-2">' +
+        '<section class="card"><div class="section-title"><h2>' + esc(t('prod.byLineTitle')) + '</h2></div>' + rankBars(byLine, { format: function (v) { return num(v) + ' ' + m2(); } }) + '</section>' +
+        '<section class="card"><div class="section-title"><h2>' + esc(t('prod.downtimeTitle')) + '</h2></div>' + rankBars(downtimeRows, { format: function (v) { return num(v) + ' ' + t('prod.minUnit'); } }) + '</section>' +
+      '</div>' +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('prod.trendTitle')) + '</h2></div>' + trendChart(dailyTrend, { color: 'var(--warn)', format: function (v) { return num(v) + ' ' + t('prod.minUnit'); }, label: t('prod.trendTitle') }) + '</section>' +
+      '<div class="row spread"><h2 style="margin:0">' + esc(t('prod.shiftLogTitle')) + '</h2></div>' + renderListPage('shiftReports', true);
+  }
+
+  function renderQualityDashboard() {
+    var last7 = new Set(WINDOW.slice(-7)), last30 = new Set(WINDOW.slice(-30));
+    var finished30 = DB.labTests.filter(function (t2) { return t2.stage === 'finished' && last30.has(t2.date); });
+    var passRate = finished30.length ? Math.round(finished30.filter(function (t2) { return t2.pass; }).length / finished30.length * 100) : 0;
+    var last7Reports = DB.shiftReports.filter(function (s) { return last7.has(s.date); });
+    var first7 = sumField(last7Reports, 'firstM2'), kiln7 = sumField(last7Reports, 'kilnOutM2');
+    var openReports = finished30.filter(function (t2) { return !t2.pass; });
+
+    var stats = statTiles([
+      { value: (kiln7 ? num(Math.round(first7 / kiln7 * 100)) : '—') + pct(), label: t('qual.kpi.first7') },
+      { value: num(passRate) + pct(), label: t('qual.kpi.passRate30') },
+      { value: num(openReports.length), label: t('qual.kpi.openNcr') },
+      { value: num(DB.defectOccurrences.filter(function (d) { return last30.has(d.date); }).reduce(function (s, d) { return s + d.m2; }, 0)), label: t('qual.kpi.downgraded30') },
+    ]);
+
+    var defectSums = {};
+    DB.defectOccurrences.filter(function (d) { return last30.has(d.date); }).forEach(function (d) { defectSums[d.defectCodeId] = (defectSums[d.defectCodeId] || 0) + d.m2; });
+    var defectRows = Object.keys(defectSums).sort(function (a, b) { return defectSums[b] - defectSums[a]; }).slice(0, 8)
+      .map(function (k) { return { label: L(by.defects[k].name), value: defectSums[k] }; });
+
+    var passTrend = WINDOW.map(function (date) {
+      var day = DB.labTests.filter(function (t2) { return t2.stage === 'finished' && t2.date === date; });
+      return { date: date, value: day.length ? Math.round(day.filter(function (t2) { return t2.pass; }).length / day.length * 100) : null };
+    }).filter(function (p) { return p.value !== null; });
+
+    var ncrRows = openReports.slice(0, 8).map(function (t2) {
+      var lot = by.sortingLots[t2.refId];
+      return '<li><button class="link" data-action="open" data-kind="labTest" data-id="' + t2.id + '"><span class="dot bad"></span>' +
+        esc(L(by.tests[t2.testCodeId].name)) + (lot ? ' — ' + esc(lot.lotNumber) : '') + ' · ' + esc(date(t2.date)) + '</button></li>';
+    }).join('');
+
+    return pageHead(L(MODULE_BY_ID.quality.name), t('qual.sub'), 'g.quality') + stats +
+      '<div class="grid-2">' +
+        '<section class="card"><div class="section-title"><h2>' + esc(t('qual.defectTitle')) + '</h2></div>' + rankBars(defectRows, { tone: 'bad', format: function (v) { return num(v) + ' ' + m2(); } }) + '</section>' +
+        '<section class="card"><div class="section-title"><h2>' + esc(t('qual.passTrendTitle')) + '</h2></div>' + trendChart(passTrend, { color: 'var(--pos)', format: function (v) { return num(v) + pct(); }, label: t('qual.passTrendTitle') }) + '</section>' +
+      '</div>' +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('qual.ncrTitle')) + '</h2></div>' + (ncrRows ? '<ul class="linklist">' + ncrRows + '</ul>' : '<p class="muted small">' + esc(t('qual.noNcr')) + '</p>') + '</section>' +
+      '<div class="row spread"><h2 style="margin:0">' + esc(t('qual.labLogTitle')) + '</h2></div>' + renderListPage('labTests', true);
   }
 
   function renderPlanned(m) {
@@ -788,8 +1064,44 @@
       ]) + (repDealers.length ? block(t('p.dealers') + ' (' + num(repDealers.length) + ')', '<ul class="linklist">' + repDealers.map(function (d) { return '<li>' + openLink('dealer', d.id, L(d.name)) + '<span class="small muted">' + esc(L(d.governorate)) + '</span></li>'; }).join('') + '</ul>') : '');
       return drawerFrame('k.employee', L(e.name), '<span class="chip plain mono">' + esc(e.id) + '</span>' + statusChip(e.status), body);
     },
+    shiftReport: function (s) {
+      var events = DB.downtimeEvents.filter(function (e) { return e.line === s.line && e.date === s.date && e.shift === s.shift; });
+      var eventsHtml = events.length ? '<ul class="linklist">' + events.map(function (e) {
+        var code = DB.codes.downtime.filter(function (c) { return c.id === e.codeId; })[0];
+        return '<li><span>' + esc(L(code.name)) + '</span><span class="num">' + num(e.minutes) + ' ' + t('prod.minUnit') + '</span></li>';
+      }).join('') + '</ul>' : '<p class="muted small">—</p>';
+      var defects = DB.defectOccurrences.filter(function (d) { return d.shiftReportId === s.id; });
+      var defectsHtml = defects.length ? '<ul class="linklist">' + defects.map(function (d) {
+        return '<li><span>' + esc(L(by.defects[d.defectCodeId].name)) + '</span><span class="num">' + num(d.m2) + ' ' + m2() + '</span></li>';
+      }).join('') + '</ul>' : '<p class="muted small">—</p>';
+      var body = facts([
+        [t('c.line'), esc(L(LINE[s.line].name))], [t('c.shift'), esc(L(DB.company.shifts.filter(function (sh) { return sh.id === s.shift; })[0].name))],
+        [t('c.date'), esc(date(s.date))], [t('c.product'), openLink('product', s.productId, L(by.products[s.productId].name))],
+        [t('d.supervisor'), openLink('employee', s.supervisorId, L(by.employees[s.supervisorId].name))],
+      ]) + block(t('d.production'), facts([
+        [t('d.pressed'), num(s.pressedM2) + ' ' + m2()], [t('d.kilnIn'), num(s.kilnInM2) + ' ' + m2()], [t('d.kilnOut'), num(s.kilnOutM2) + ' ' + m2()],
+        [t('d.first'), num(s.firstM2) + ' ' + m2()], [t('d.commercial'), num(s.commercialM2) + ' ' + m2()], [t('d.second'), num(s.secondM2) + ' ' + m2()],
+        [t('d.downtimeMin'), num(s.downtimeMinutes)], [t('d.gas'), num(s.gasM3) + ' ' + m3()],
+      ])) + block(t('d.downtimeEvents'), eventsHtml) + block(t('d.shiftDefects'), defectsHtml);
+      return drawerFrame('k.shiftReport', L(LINE[s.line].name) + ' · ' + date(s.date), chip(L(DB.company.shifts.filter(function (sh) { return sh.id === s.shift; })[0].name), '', true), body);
+    },
+    labTest: function (q) {
+      var test = by.tests[q.testCodeId];
+      var spec = q.family ? test.spec[q.family] : null;
+      var refLabel;
+      if (q.refType === 'lot' && by.sortingLots[q.refId]) refLabel = by.sortingLots[q.refId].lotNumber;
+      else if (q.refType === 'material' && by.materials[q.refId]) refLabel = openLink('material', q.refId, L(by.materials[q.refId].name));
+      else refLabel = q.refId;
+      var body = facts([
+        [t('c.test'), esc(L(test.name))], [t('c.stage'), esc(L(DB.codes.testStages[q.stage]))], [t('d.testStandard'), esc(L(test.standard))],
+        spec ? [t('d.testSpec'), specText(spec) + ' ' + esc(L(test.unit))] : null,
+        [t('d.testValue'), num(q.value, 2) + ' ' + esc(L(test.unit))], [t('c.date'), esc(date(q.date))],
+        [t('d.testRef'), refLabel], [t('d.testBy'), openLink('employee', q.by, L(by.employees[q.by].name))],
+      ]);
+      return drawerFrame('k.labTest', L(test.name), q.pass ? chip(t('s.pass'), 'pos') : chip(t('s.fail'), 'bad'), body);
+    },
   };
-  var KIND_SOURCE = { product: 'products', material: 'materials', recipe: 'recipes', asset: 'assets', part: 'spareParts', warehouse: 'warehouses', supplier: 'suppliers', dealer: 'dealers', employee: 'employees' };
+  var KIND_SOURCE = { product: 'products', material: 'materials', recipe: 'recipes', asset: 'assets', part: 'spareParts', warehouse: 'warehouses', supplier: 'suppliers', dealer: 'dealers', employee: 'employees', shiftReport: 'shiftReports', labTest: 'labTests' };
 
   function renderDrawer() {
     var top = state.drawer[state.drawer.length - 1];
@@ -825,9 +1137,11 @@
     var other = state.locale === 'ar' ? 'English' : 'العربية';
     return '<button class="icon-btn" data-action="locale" aria-label="' + other + '" title="' + other + '"><span style="font-size:12px;font-weight:700">' + (state.locale === 'ar' ? 'EN' : 'ع') + '</span></button>';
   }
+  var PAGES = { exec: renderExecDashboard, lines: renderProductionDashboard, quality: renderQualityDashboard };
   function renderPage() {
     if (state.page === 'profile') return renderProfile();
     if (state.page === 'codes') return renderCodes();
+    if (PAGES[state.page]) return PAGES[state.page]();
     if (LISTS[state.page]) return renderListPage(state.page);
     if (MODULE_BY_ID[state.page]) return renderPlanned(MODULE_BY_ID[state.page]);
     return renderProfile();

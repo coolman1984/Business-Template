@@ -183,3 +183,13 @@ test('lab test values respect their pass/fail spec', () => {
     assert.equal(t.pass, inRange, `${t.id} ${t.testCodeId}`);
   }
 });
+
+test('defect occurrences reference real shift reports and codes, and DF03 dominates the burner incident', () => {
+  const srIds = new Set(db.shiftReports.map((s) => s.id));
+  const defectIds = new Set(db.codes.defects.map((d) => d.id));
+  assert.ok(db.defectOccurrences.length > 0);
+  for (const d of db.defectOccurrences) assert.ok(srIds.has(d.shiftReportId) && defectIds.has(d.defectCodeId), d.id);
+  const during = db.defectOccurrences.filter((d) => d.line === 'L2' && d.date >= db.incidents.l2IssueFrom && d.date <= db.incidents.l2IssueTo);
+  const df03Share = during.filter((d) => d.defectCodeId === 'DF03').length / during.length;
+  assert.ok(df03Share > 0.5, `DF03 should dominate during the burner incident, got ${df03Share}`);
+});

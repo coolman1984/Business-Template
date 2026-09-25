@@ -235,3 +235,15 @@ th.sortable:focus-visible{outline-offset:-2px}
   .toolbar select{flex:1 1 140px;max-width:none}
   .search{max-width:none}
 }
+
+/* dashboards */
+.trend{display:grid;gap:4px}
+.trend svg{width:100%;height:140px;display:block}
+.trend-foot{display:flex;justify-content:space-between}
+.dot{width:8px;height:8px;border-radius:999px;display:inline-block;flex:0 0 auto;background:var(--muted)}
+.dot.bad{background:var(--bad)}
+.dot.warn{background:var(--warn)}
+.dot.pos{background:var(--pos)}
+.dot.glaze{background:var(--glaze)}
+.alert-row{display:flex;align-items:center;gap:8px;width:100%;text-align:start;padding:4px 0}
+.tablet-btn{display:none}
