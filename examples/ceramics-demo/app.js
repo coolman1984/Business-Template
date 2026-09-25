@@ -4,7 +4,7 @@
 
   var DB = globalThis.CeramicData.generate();
   var PAGE_SIZE = 25;
-  var DONE_PHASES = ['A1', 'A2', 'A3'];
+  var DONE_PHASES = ['A1', 'A2', 'A3', 'A4'];
 
   // ================================================================ i18n
   var UI = {
@@ -37,9 +37,11 @@
       'c.date': 'التاريخ', 'c.product': 'المنتج', 'c.pressedM2': 'مكبوس م²', 'c.kilnOutM2': 'خارج الفرن م²', 'c.firstPct': 'فرز أول٪', 'c.downtimeMin': 'توقف (دقيقة)', 'c.gasM3': 'غاز م³',
       'c.test': 'الاختبار', 'c.value': 'القيمة', 'c.result': 'النتيجة', 'c.ref': 'المرجع',
       'c.lot': 'اللوط', 'c.grade': 'الفرز', 'c.shade': 'درجة اللون', 'c.m2': 'م²', 'c.available': 'المتاح',
+      'c.warehouse': 'المخزن', 'c.onHand': 'الرصيد', 'c.dealer': 'التاجر', 'c.orderNumber': 'رقم الطلبية', 'c.revenue': 'القيمة', 'c.driver': 'السائق', 'c.pallets': 'باليتات', 'c.orders': 'طلبيات', 'c.loadNumber': 'رقم التحميلة',
       // statuses
       's.active': 'نشط', 's.new': 'جديد', 's.discontinued': 'متوقف', 's.running': 'شغال', 's.maintenance': 'في الصيانة', 's.standby': 'احتياطي', 's.onLeave': 'إجازة', 's.suspended': 'موقوف',
       's.creditHold': 'موقوف ائتمانيًا', 's.inactive': 'غير نشط', 's.belowMin': 'تحت الحد', 's.ok': 'كافي', 's.critical': 'حرجة', 's.pass': 'مطابق', 's.fail': 'غير مطابق',
+      's.confirmed': 'مؤكدة', 's.reserved': 'محجوزة', 's.dispatched': 'مشحونة', 's.delivered': 'تم التسليم',
       'pm.hours': 'كل {n} ساعة تشغيل', 'pm.strokes': 'كل {n} كبسة', 'pm.calendar': 'كل {n} يوم',
       'lvl.manager': 'مدير', 'lvl.professional': 'أخصائي/مهندس', 'lvl.supervisor': 'مشرف', 'lvl.technician': 'فني', 'lvl.worker': 'عامل',
       'origin.local': 'محلي', 'origin.imported': 'مستورد', 'cash': 'نقدي', 'body': 'جسم', 'glaze': 'جليز', 'anyEquipment': 'كل المعدات (عام)',
@@ -56,6 +58,9 @@
       'p.codes': 'الأكواد والمعايير', 'p.codes.sub': 'أكواد العيوب وأسباب التوقف واختبارات الجودة ومواصفاتها.',
       'p.shiftReports': 'تقارير الورديات', 'p.shiftReports.sub': 'إنتاج كل وردية على كل خط، بالفرز والتوقف واستهلاك الغاز.',
       'p.labTests': 'اختبارات المعمل', 'p.labTests.sub': 'اختبارات الخامات الواردة وأثناء التشغيل والمنتج التام بنتائجها.',
+      'p.stock': 'المنتج التام', 'p.stock.sub': 'أرصدة المنتج التام بالمنتج والفرز ودرجة اللون والمخزن، بعد خصم المحجوز والمشحون.',
+      'p.salesOrders': 'طلبيات المبيعات', 'p.salesOrders.sub': 'طلبيات التجار بحالتها وقيمتها، وتنبيه الطلبيات الموقوفة ائتمانيًا.',
+      'p.dispatchLoads': 'تحميلات الشحن', 'p.dispatchLoads.sub': 'تحميلات العربيات بسائقيها وباليتاتها والطلبيات اللي عليها.',
       'tab.defects': 'أكواد العيوب', 'tab.downtime': 'أسباب التوقف', 'tab.tests': 'اختبارات الجودة',
       // A2 dashboards
       'exec.sub': 'لوحة صباحية: الإنتاج والفرز والمبيعات والتحصيل والتنبيهات اللي محتاجة قرار.',
@@ -87,17 +92,19 @@
       'd.pei': 'مقاومة التآكل', 'd.slip': 'مقاومة الانزلاق', 'd.launched': 'بداية الإنتاج', 'd.usedIn': 'مستخدمة في التركيبات', 'd.composition': 'التركيب', 'd.targets': 'القيم المستهدفة',
       'd.additives': 'إضافات', 'd.productsUsing': 'المنتجات اللي بتستخدمها', 'd.pmPlan': 'خطة الصيانة الوقائية', 'd.meter': 'العداد الحالي', 'd.lastPm': 'آخر صيانة', 'd.nextPm': 'الصيانة الجاية',
       'd.parts': 'قطع الغيار الخاصة بيها', 'd.genericParts': '+ {n} قطعة عامة (رولمان، محركات، كهرباء)', 'd.compatible': 'المعدات اللي بتستخدمها', 'd.stockValue': 'قيمة الرصيد',
-      'd.contents': 'محتوى المخزن', 'd.fgLater': 'أرصدة المنتج التام بدرجات اللون والمقاس بتظهر في الدفعة A4.', 'd.supplied': 'الأصناف اللي بيوردها', 'd.sparesSupplied': 'قطع غيار: {n} صنف',
-      'd.account': 'الحساب', 'd.salesLater': 'الطلبيات والمديونية والتحصيل بتظهر في الدفعة A4.', 'd.tenure': 'مدة الخدمة', 'd.years': '{n} سنة', 'd.paymentMethod': 'طريقة الدفع',
+      'd.contents': 'محتوى المخزن', 'd.supplied': 'الأصناف اللي بيوردها', 'd.sparesSupplied': 'قطع غيار: {n} صنف',
+      'd.account': 'الحساب', 'd.tenure': 'مدة الخدمة', 'd.years': '{n} سنة', 'd.paymentMethod': 'طريقة الدفع',
       'd.priceList': 'قائمة الأسعار', 'd.since': 'عميل من', 'd.contact': 'البيانات', 'd.leadTime': 'مدة التوريد', 'd.slipDensity': 'كثافة الروبة جم/لتر', 'd.residue': 'متبقي منخل 63 ميكرون %',
       'd.powderMoisture': 'رطوبة البودرة %', 'd.slipWater': 'مية الروبة %', 'd.density': 'الكثافة جم/لتر', 'd.viscosity': 'اللزوجة (ثانية)', 'd.itemsCount': '{n} صنف', 'd.belowMinCount': '{n} تحت الحد',
       'd.pressed': 'مكبوس', 'd.kilnIn': 'داخل الفرن', 'd.kilnOut': 'خارج الفرن', 'd.first': 'فرز أول', 'd.commercial': 'تجاري', 'd.second': 'فرز ثاني', 'd.downtimeMin': 'دقائق التوقف',
       'd.gas': 'استهلاك الغاز', 'd.supervisor': 'مشرف الوردية', 'd.downtimeEvents': 'أحداث التوقف', 'd.shiftDefects': 'العيوب المسجلة', 'd.testStandard': 'المعيار', 'd.testSpec': 'المواصفة',
       'd.testValue': 'القيمة المقاسة', 'd.testRef': 'المرجع', 'd.testBy': 'قام بالاختبار',
       'k.product': 'منتج', 'k.material': 'خامة', 'k.recipe': 'تركيبة', 'k.asset': 'معدة', 'k.part': 'قطعة غيار', 'k.warehouse': 'مخزن', 'k.supplier': 'مورد', 'k.dealer': 'عميل', 'k.employee': 'موظف',
-      'k.shiftReport': 'تقرير وردية', 'k.labTest': 'اختبار معمل', 'k.lot': 'لوط',
+      'k.shiftReport': 'تقرير وردية', 'k.labTest': 'اختبار معمل', 'k.lot': 'لوط', 'k.stockPosition': 'رصيد صنف', 'k.salesOrder': 'طلبية بيع', 'k.dispatchLoad': 'تحميلة شحن',
       'sort.shiftReport': 'تقرير الوردية', 'sort.quantities': 'الكميات', 'sort.boxes': 'كراتين', 'sort.reserved': 'محجوز', 'sort.dispatched': 'تم شحنه',
       'p.sortingLots': 'الفرز والتعبئة', 'p.sortingLots.sub': 'ناتج الفرز بالفرز ودرجة اللون والمقاس، وما هو متاح منه للحجز.',
+      'stock.lots': 'اللوطات المكوّنة للرصيد', 'sales.creditBlockedNote': 'الطلبية محجوزة لأن التاجر موقوف ائتمانيًا.', 'sales.linesTitle': 'بنود الطلبية', 'sales.recentOrders': 'آخر الطلبيات',
+      'dispatch.ordersTitle': 'الطلبيات على التحميلة',
     },
     en: {
       'brand.sub': 'Factory management system', 'demo.note': 'Demo — every name and number here is fictional and belongs to no real factory.', 'demo.tag': 'Demo',
@@ -126,8 +133,10 @@
       'c.date': 'Date', 'c.product': 'Product', 'c.pressedM2': 'Pressed m²', 'c.kilnOutM2': 'Kiln-out m²', 'c.firstPct': 'First-choice %', 'c.downtimeMin': 'Downtime (min)', 'c.gasM3': 'Gas m³',
       'c.test': 'Test', 'c.value': 'Value', 'c.result': 'Result', 'c.ref': 'Reference',
       'c.lot': 'Lot', 'c.grade': 'Grade', 'c.shade': 'Shade', 'c.m2': 'm²', 'c.available': 'Available',
+      'c.warehouse': 'Warehouse', 'c.onHand': 'On hand', 'c.dealer': 'Dealer', 'c.orderNumber': 'Order number', 'c.revenue': 'Value', 'c.driver': 'Driver', 'c.pallets': 'Pallets', 'c.orders': 'Orders', 'c.loadNumber': 'Load number',
       's.active': 'Active', 's.new': 'New', 's.discontinued': 'Discontinued', 's.running': 'Running', 's.maintenance': 'In maintenance', 's.standby': 'Standby', 's.onLeave': 'On leave', 's.suspended': 'Suspended',
       's.creditHold': 'Credit hold', 's.inactive': 'Inactive', 's.belowMin': 'Below minimum', 's.ok': 'Sufficient', 's.critical': 'Critical', 's.pass': 'Pass', 's.fail': 'Fail',
+      's.confirmed': 'Confirmed', 's.reserved': 'Reserved', 's.dispatched': 'Dispatched', 's.delivered': 'Delivered',
       'pm.hours': 'Every {n} running hours', 'pm.strokes': 'Every {n} strokes', 'pm.calendar': 'Every {n} days',
       'lvl.manager': 'Manager', 'lvl.professional': 'Professional', 'lvl.supervisor': 'Supervisor', 'lvl.technician': 'Technician', 'lvl.worker': 'Worker',
       'origin.local': 'Local', 'origin.imported': 'Imported', 'cash': 'Cash', 'body': 'Body', 'glaze': 'Glaze', 'anyEquipment': 'Any equipment (general)',
@@ -143,6 +152,9 @@
       'p.codes': 'Codes & standards', 'p.codes.sub': 'Defect codes, downtime reasons and quality tests with their specifications.',
       'p.shiftReports': 'Shift reports', 'p.shiftReports.sub': 'Every shift on every line, with grade output, downtime and gas use.',
       'p.labTests': 'Lab tests', 'p.labTests.sub': 'Incoming, in-process and finished-product tests with their results.',
+      'p.stock': 'Finished goods', 'p.stock.sub': 'Finished-goods stock by product, grade, shade and warehouse, net of reservations and dispatches.',
+      'p.salesOrders': 'Sales orders', 'p.salesOrders.sub': 'Dealer orders with status and value, and a flag on orders blocked on credit.',
+      'p.dispatchLoads': 'Dispatch loads', 'p.dispatchLoads.sub': 'Truck loads with driver, pallets and the orders on each one.',
       'tab.defects': 'Defect codes', 'tab.downtime': 'Downtime reasons', 'tab.tests': 'Quality tests',
       // A2 dashboards
       'exec.sub': 'A morning board: output, grades, sales, collections, and the alerts that need a decision.',
@@ -173,17 +185,19 @@
       'd.pei': 'Abrasion class', 'd.slip': 'Slip resistance', 'd.launched': 'In production since', 'd.usedIn': 'Used in recipes', 'd.composition': 'Composition', 'd.targets': 'Lab targets',
       'd.additives': 'Additives', 'd.productsUsing': 'Products using it', 'd.pmPlan': 'Preventive maintenance plan', 'd.meter': 'Current meter', 'd.lastPm': 'Last service', 'd.nextPm': 'Next service',
       'd.parts': 'Its spare parts', 'd.genericParts': '+ {n} general parts (bearings, motors, electrical)', 'd.compatible': 'Machines that use it', 'd.stockValue': 'Stock value',
-      'd.contents': 'What is stored here', 'd.fgLater': 'Finished-goods stock by shade and caliber appears in phase A4.', 'd.supplied': 'Items supplied', 'd.sparesSupplied': 'Spare parts: {n} items',
-      'd.account': 'Account', 'd.salesLater': 'Orders, balance and collections appear in phase A4.', 'd.tenure': 'Service', 'd.years': '{n} years', 'd.paymentMethod': 'Payment method',
+      'd.contents': 'What is stored here', 'd.supplied': 'Items supplied', 'd.sparesSupplied': 'Spare parts: {n} items',
+      'd.account': 'Account', 'd.tenure': 'Service', 'd.years': '{n} years', 'd.paymentMethod': 'Payment method',
       'd.priceList': 'Price list', 'd.since': 'Customer since', 'd.contact': 'Details', 'd.leadTime': 'Lead time', 'd.slipDensity': 'Slip density g/L', 'd.residue': 'Residue on 63 µm %',
       'd.powderMoisture': 'Powder moisture %', 'd.slipWater': 'Slip water %', 'd.density': 'Density g/L', 'd.viscosity': 'Viscosity (s)', 'd.itemsCount': '{n} items', 'd.belowMinCount': '{n} below minimum',
       'd.pressed': 'Pressed', 'd.kilnIn': 'Kiln-in', 'd.kilnOut': 'Kiln-out', 'd.first': 'First choice', 'd.commercial': 'Commercial', 'd.second': 'Second choice', 'd.downtimeMin': 'Downtime minutes',
       'd.gas': 'Gas used', 'd.supervisor': 'Shift supervisor', 'd.downtimeEvents': 'Downtime events', 'd.shiftDefects': 'Logged defects', 'd.testStandard': 'Standard', 'd.testSpec': 'Specification',
       'd.testValue': 'Measured value', 'd.testRef': 'Reference', 'd.testBy': 'Tested by',
       'k.product': 'Product', 'k.material': 'Material', 'k.recipe': 'Recipe', 'k.asset': 'Machine', 'k.part': 'Spare part', 'k.warehouse': 'Warehouse', 'k.supplier': 'Supplier', 'k.dealer': 'Customer', 'k.employee': 'Employee',
-      'k.shiftReport': 'Shift report', 'k.labTest': 'Lab test', 'k.lot': 'Lot',
+      'k.shiftReport': 'Shift report', 'k.labTest': 'Lab test', 'k.lot': 'Lot', 'k.stockPosition': 'Stock position', 'k.salesOrder': 'Sales order', 'k.dispatchLoad': 'Dispatch load',
       'sort.shiftReport': 'Shift report', 'sort.quantities': 'Quantities', 'sort.boxes': 'Boxes', 'sort.reserved': 'Reserved', 'sort.dispatched': 'Dispatched',
       'p.sortingLots': 'Sorting & packing', 'p.sortingLots.sub': 'Sorting output by grade, shade and caliber, and what is still available to reserve.',
+      'stock.lots': 'Lots making up this position', 'sales.creditBlockedNote': 'This order is on hold because the dealer is on credit hold.', 'sales.linesTitle': 'Order lines', 'sales.recentOrders': 'Recent orders',
+      'dispatch.ordersTitle': 'Orders on this load',
     },
   };
 
@@ -252,6 +266,22 @@
   var DESIGN = {}; DB.designs.forEach(function (d) { DESIGN[d.id] = d; });
   var currentUser = DB.employees.filter(function (e) { return e.departmentId === 'D01'; })[2];
 
+  // ---- finished-goods stock positions: sorting lots rolled up by product × grade × shade × warehouse ----
+  var STOCK_BY_ID = {};
+  var stockPositions = (function () {
+    var map = {};
+    DB.sortingLots.forEach(function (l) {
+      var key = l.productId + '|' + l.grade + '|' + l.shade + '|' + l.warehouseId;
+      if (!map[key]) map[key] = { id: key, productId: l.productId, grade: l.grade, shade: l.shade, warehouseId: l.warehouseId, totalM2: 0, reservedM2: 0, dispatchedM2: 0, lots: [] };
+      var pos = map[key];
+      pos.totalM2 += l.m2; pos.reservedM2 += l.reservedM2; pos.dispatchedM2 += l.dispatchedM2; pos.lots.push(l);
+    });
+    var out = Object.keys(map).map(function (k) { return map[k]; });
+    out.forEach(function (p) { p.onHandM2 = p.totalM2 - p.dispatchedM2; p.availableM2 = p.onHandM2 - p.reservedM2; STOCK_BY_ID[p.id] = p; });
+    return out.filter(function (p) { return p.onHandM2 > 0; });
+  })();
+  by.stockPositions = STOCK_BY_ID;
+
   // ================================================================ icons
   var ICON = {
     menu: '<path d="M3 6h18M3 12h18M3 18h18"/>',
@@ -319,13 +349,13 @@
     { id: 'quality', group: 'quality', icon: 'flask', name: b('الجودة والمعمل', 'Quality & lab'),
       screens: [b('فحص الخامات الواردة', 'Incoming inspection'), b('فحوص أثناء التشغيل', 'In-process checks'), b('اختبارات المنتج التام', 'Finished-product tests'), b('حجز لوط وتقرير عدم مطابقة', 'Lot hold and non-conformance report'), b('شهادة مطابقة للتصدير', 'Export certificate of conformity')],
       kpis: [b('نسبة نجاح الاختبارات', 'Test pass rate'), b('أكثر العيوب تكرارًا', 'Most frequent defects'), b('تقارير مفتوحة', 'Open reports'), b('شكاوى التجار', 'Dealer complaints')], uses: ['codes', 'products', 'materials'] },
-    { id: 'stores', group: 'commercial', phase: 'A4', icon: 'box', name: b('المخازن والمنتج التام', 'Stores & finished goods'),
+    { id: 'stores', group: 'commercial', icon: 'box', name: b('المخازن والمنتج التام', 'Stores & finished goods'),
       screens: [b('المنتج التام بالفرز ودرجة اللون والمقاس والموقع', 'Finished goods by grade, shade, caliber and location'), b('أرصدة الخامات والكيماويات', 'Material and chemical stock'), b('التحويلات والجرد', 'Transfers and counts'), b('الحجز للطلبيات', 'Reservations for orders'), b('عمر المخزون', 'Stock ageing')],
       kpis: [b('م² متاح بالفرز', 'Available m² by grade'), b('أيام تغطية الخامات', 'Material days of cover'), b('الرصيد المتفتت', 'Fragmented shade stock')], uses: ['warehouses', 'products', 'materials', 'spareParts'] },
-    { id: 'sales', group: 'commercial', phase: 'A4', icon: 'cart', name: b('المبيعات والتجار', 'Sales & dealers'),
+    { id: 'sales', group: 'commercial', icon: 'cart', name: b('المبيعات والتجار', 'Sales & dealers'),
       screens: [b('عروض الأسعار', 'Quotations'), b('طلبية بشرط نفس درجة اللون', 'Orders requiring a single shade'), b('الحجز وحد الائتمان', 'Reservation and credit limit'), b('المرتجعات والشكاوى باللوط', 'Returns and complaints by lot'), b('عمولات المناديب', 'Rep commissions')],
       kpis: [b('المبيعات بالمنطقة والتاجر', 'Sales by region and dealer'), b('طلبيات تحت التنفيذ', 'Orders in progress'), b('متوسط سعر المتر', 'Average price per m²')], uses: ['dealers', 'products', 'employees'] },
-    { id: 'dispatch', group: 'commercial', phase: 'A4', icon: 'truck', name: b('التوزيع والشحن', 'Dispatch & shipping'),
+    { id: 'dispatch', group: 'commercial', icon: 'truck', name: b('التوزيع والشحن', 'Dispatch & shipping'),
       screens: [b('أوامر التحميل', 'Loading orders'), b('العربيات والسواقين', 'Trucks and drivers'), b('مسح باركود الباليتات', 'Pallet barcode scanning'), b('إذن الخروج من البوابة', 'Gate pass')],
       kpis: [b('عربيات في اليوم', 'Trucks a day'), b('زمن التحميل', 'Loading time'), b('التسليم في الميعاد', 'On-time delivery')], uses: ['dealers', 'warehouses'] },
     { id: 'purchasing', group: 'commercial', phase: 'A5', icon: 'receipt', name: b('المشتريات والاستيراد', 'Purchasing & imports'),
@@ -363,7 +393,10 @@
   // ================================================================ small render helpers
   function chip(text, tone, plain) { return '<span class="chip' + (tone ? ' ' + tone : '') + (plain ? ' plain' : '') + '">' + esc(text) + '</span>'; }
   function statusChip(status) {
-    var tone = { active: 'pos', running: 'pos', new: 'accent', discontinued: '', maintenance: 'warn', standby: '', onLeave: 'warn', suspended: 'bad', creditHold: 'bad', inactive: '' }[status];
+    var tone = {
+      active: 'pos', running: 'pos', new: 'accent', discontinued: '', maintenance: 'warn', standby: '', onLeave: 'warn', suspended: 'bad', creditHold: 'bad', inactive: '',
+      confirmed: '', reserved: 'accent', dispatched: 'accent', delivered: 'pos',
+    }[status];
     return chip(t('s.' + status), tone);
   }
   function openLink(kind, id, label) { return '<button class="link" data-action="open" data-kind="' + kind + '" data-id="' + esc(id) + '">' + esc(label) + '</button>'; }
@@ -600,6 +633,52 @@
         { key: 'shade', label: 'c.shade', sort: function (l) { return l.shade; }, cell: function (l) { return '<span class="mono">' + esc(l.shade) + '</span>'; } },
         { key: 'm2', label: 'c.m2', end: true, sort: function (l) { return l.m2; }, cell: function (l) { return '<span class="num">' + num(l.m2) + '</span>'; } },
         { key: 'available', label: 'c.available', end: true, sort: function (l) { return l.m2 - l.reservedM2 - l.dispatchedM2; }, cell: function (l) { return '<span class="num">' + num(l.m2 - l.reservedM2 - l.dispatchedM2) + '</span>'; } },
+      ],
+    },
+    stock: {
+      kind: 'stockPosition', rows: function () { return stockPositions; },
+      search: function (p) { return L(by.products[p.productId].name) + ' ' + p.grade + ' ' + p.shade; },
+      filters: [
+        { key: 'grade', label: 'c.grade', options: function () { return DB.grades.map(function (g) { return [g.id, L(g.name)]; }); }, test: function (p, v) { return p.grade === v; } },
+        { key: 'warehouse', label: 'c.warehouse', options: function () { return DB.warehouses.filter(function (w) { return w.type === 'finished'; }).map(function (w) { return [w.id, L(w.name)]; }); }, test: function (p, v) { return p.warehouseId === v; } },
+      ],
+      columns: [
+        { key: 'product', label: 'c.product', sort: function (p) { return L(by.products[p.productId].name); }, cell: function (p) { return esc(L(by.products[p.productId].name)); } },
+        { key: 'grade', label: 'c.grade', sort: function (p) { return p.grade; }, cell: function (p) { return chip(p.grade, p.grade === 'G1' ? 'pos' : p.grade === 'G2' ? 'warn' : 'bad', true); } },
+        { key: 'shade', label: 'c.shade', sort: function (p) { return p.shade; }, cell: function (p) { return '<span class="mono">' + esc(p.shade) + '</span>'; } },
+        { key: 'warehouse', label: 'c.warehouse', sort: function (p) { return L(by.warehouses[p.warehouseId].name); }, cell: function (p) { return esc(L(by.warehouses[p.warehouseId].name)); } },
+        { key: 'onHand', label: 'c.onHand', end: true, sort: function (p) { return p.onHandM2; }, cell: function (p) { return '<span class="num">' + num(p.onHandM2) + '</span>'; } },
+        { key: 'reserved', label: 'sort.reserved', end: true, sort: function (p) { return p.reservedM2; }, cell: function (p) { return '<span class="num">' + num(p.reservedM2) + '</span>'; } },
+        { key: 'available', label: 'c.available', end: true, sort: function (p) { return p.availableM2; }, cell: function (p) { return '<span class="num">' + num(p.availableM2) + '</span>'; } },
+      ],
+    },
+    salesOrders: {
+      kind: 'salesOrder', rows: function () { return DB.salesOrders; },
+      search: function (o) { return o.orderNumber + ' ' + L(by.dealers[o.dealerId].name); },
+      filters: [
+        { key: 'status', label: 'c.status', options: function () { return ['confirmed', 'reserved', 'dispatched', 'delivered'].map(function (k) { return [k, t('s.' + k)]; }); }, test: function (o, v) { return o.status === v; } },
+        { key: 'region', label: 'c.region', options: function () { return Object.keys(DB.regions).map(function (k) { return [k, L(DB.regions[k])]; }); }, test: function (o, v) { return by.dealers[o.dealerId].region === v; } },
+      ],
+      columns: [
+        { key: 'orderNumber', label: 'c.orderNumber', sort: function (o) { return o.orderNumber; }, cell: function (o) { return '<span class="mono">' + esc(o.orderNumber) + '</span>'; } },
+        { key: 'date', label: 'c.date', sort: function (o) { return o.date; }, cell: function (o) { return '<span class="num small">' + esc(date(o.date)) + '</span>'; } },
+        { key: 'dealer', label: 'c.dealer', sort: function (o) { return L(by.dealers[o.dealerId].name); }, cell: function (o) { return esc(L(by.dealers[o.dealerId].name)); } },
+        { key: 'm2', label: 'c.m2', end: true, sort: function (o) { return o.totalM2; }, cell: function (o) { return '<span class="num">' + num(o.totalM2) + '</span>'; } },
+        { key: 'revenue', label: 'c.revenue', end: true, sort: function (o) { return orderRevenue(o); }, cell: function (o) { return '<span class="num">' + num(orderRevenue(o)) + '</span>'; } },
+        { key: 'status', label: 'c.status', sort: function (o) { return t('s.' + o.status); }, cell: function (o) { return statusChip(o.status) + (o.blockedOnCredit ? ' ' + chip(t('s.creditHold'), 'bad', true) : ''); } },
+      ],
+    },
+    dispatchLoads: {
+      kind: 'dispatchLoad', rows: function () { return DB.dispatchLoads; },
+      search: function (d) { return d.loadNumber + ' ' + L(by.employees[d.driverId].name); },
+      filters: [],
+      columns: [
+        { key: 'loadNumber', label: 'c.loadNumber', sort: function (d) { return d.loadNumber; }, cell: function (d) { return '<span class="mono">' + esc(d.loadNumber) + '</span>'; } },
+        { key: 'date', label: 'c.date', sort: function (d) { return d.date; }, cell: function (d) { return '<span class="num small">' + esc(date(d.date)) + '</span>'; } },
+        { key: 'driver', label: 'c.driver', sort: function (d) { return L(by.employees[d.driverId].name); }, cell: function (d) { return esc(L(by.employees[d.driverId].name)); } },
+        { key: 'orders', label: 'c.orders', end: true, sort: function (d) { return d.orderIds.length; }, cell: function (d) { return '<span class="num">' + num(d.orderIds.length) + '</span>'; } },
+        { key: 'pallets', label: 'c.pallets', end: true, sort: function (d) { return d.pallets; }, cell: function (d) { return '<span class="num">' + num(d.pallets) + '</span>'; } },
+        { key: 'status', label: 'c.status', sort: function (d) { return t('s.' + d.status); }, cell: function (d) { return statusChip(d.status); } },
       ],
     },
   };
@@ -1177,7 +1256,12 @@
         var low = DB.spareParts.filter(function (p) { return p.onHand < p.minStock; }).length;
         contents += '<p>' + esc(t('d.itemsCount', { n: num(DB.spareParts.length) })) + ' · ' + chip(t('d.belowMinCount', { n: num(low) }), 'bad') + '</p><p>' + '<button class="link" data-action="nav" data-id="spareParts">' + esc(t('p.spareParts')) + '</button></p>';
       }
-      if (w.type === 'finished') contents += '<p class="muted">' + esc(t('d.fgLater')) + '</p>';
+      if (w.type === 'finished') {
+        var stock = stockPositions.filter(function (p) { return p.warehouseId === w.id; }).sort(function (a, b) { return b.onHandM2 - a.onHandM2; });
+        contents += stock.length ? '<ul class="linklist">' + stock.slice(0, 14).map(function (p) {
+          return '<li><span>' + openLink('stockPosition', p.id, L(by.products[p.productId].name)) + ' ' + chip(p.grade + ' · ' + p.shade, '', true) + '</span><span class="num">' + num(p.onHandM2) + ' ' + m2() + '</span></li>';
+        }).join('') + '</ul>' + (stock.length > 14 ? '<p class="muted small">+ ' + num(stock.length - 14) + '</p>' : '') : '<p class="muted small">—</p>';
+      }
       var body = facts([
         [t('c.site'), esc(L(DB.sites.filter(function (s) { return s.id === w.site; })[0].name))], [t('c.keeper'), openLink('employee', w.keeperId, L(by.employees[w.keeperId].name))],
         [t('c.locations'), num(w.locations)], [t('c.capacity'), esc(L(w.capacity))], [t('c.areaM2'), num(w.areaM2)],
@@ -1202,7 +1286,13 @@
         [t('c.rep'), d.repId ? openLink('employee', d.repId, L(by.employees[d.repId].name)) : '—'],
         [t('c.credit'), d.creditLimit ? money(d.creditLimit) : '—'], [t('c.terms'), esc(d.paymentTermsDays ? days(d.paymentTermsDays) : L(d.paymentMethod))],
         [t('d.priceList'), esc(L(pl.name))], [t('c.class'), esc(d.class)], [t('c.target'), num(d.annualTargetM2) + ' ' + m2()], [t('d.since'), year(d.since)],
-      ]) + block(t('d.account'), '<p class="muted">' + esc(t('d.salesLater')) + '</p>');
+      ]) + block(t('sales.recentOrders'), (function () {
+        var orders = DB.salesOrders.filter(function (o) { return o.dealerId === d.id; }).sort(function (a, b) { return cmp(b.date, a.date); });
+        if (!orders.length) return '<p class="muted small">—</p>';
+        return '<ul class="linklist">' + orders.slice(0, 10).map(function (o) {
+          return '<li><span>' + openLink('salesOrder', o.id, o.orderNumber) + ' <span class="muted small">' + esc(date(o.date)) + '</span></span>' + statusChip(o.status) + '</li>';
+        }).join('') + '</ul>' + (orders.length > 10 ? '<p class="muted small">+ ' + num(orders.length - 10) + '</p>' : '');
+      })());
       return drawerFrame('k.dealer', L(d.name), '<span class="chip plain mono">' + esc(d.id) + '</span>' + statusChip(d.status), body);
     },
     employee: function (e) {
@@ -1265,8 +1355,45 @@
       ]));
       return drawerFrame('k.lot', l.lotNumber, chip(l.grade, l.grade === 'G1' ? 'pos' : l.grade === 'G2' ? 'warn' : 'bad', true) + chip(l.shade, '', true), body);
     },
+    stockPosition: function (p) {
+      var lotsHtml = '<ul class="linklist">' + p.lots.slice(0, 20).map(function (l) {
+        return '<li><span>' + openLink('lot', l.id, l.lotNumber) + ' <span class="muted small">' + esc(date(l.date)) + '</span></span><span class="num">' + num(l.m2) + ' ' + m2() + '</span></li>';
+      }).join('') + '</ul>' + (p.lots.length > 20 ? '<p class="muted small">+ ' + num(p.lots.length - 20) + '</p>' : '');
+      var body = facts([
+        [t('c.product'), openLink('product', p.productId, L(by.products[p.productId].name))],
+        [t('c.warehouse'), openLink('warehouse', p.warehouseId, L(by.warehouses[p.warehouseId].name))],
+      ]) + block(t('sort.quantities'), facts([
+        [t('c.onHand'), num(p.onHandM2) + ' ' + m2()], [t('sort.reserved'), num(p.reservedM2) + ' ' + m2()], [t('c.available'), num(p.availableM2) + ' ' + m2()],
+      ])) + block(t('stock.lots') + ' (' + num(p.lots.length) + ')', lotsHtml);
+      return drawerFrame('k.stockPosition', L(by.products[p.productId].name), chip(p.grade, p.grade === 'G1' ? 'pos' : p.grade === 'G2' ? 'warn' : 'bad', true) + chip(p.shade, '', true), body);
+    },
+    salesOrder: function (o) {
+      var dealer = by.dealers[o.dealerId];
+      var linesHtml = '<ul class="linklist">' + o.lines.map(function (l) {
+        return '<li><span>' + openLink('product', l.productId, L(by.products[l.productId].name)) + ' ' + chip(l.grade + ' · ' + l.shade, '', true) + '</span><span class="num">' + num(l.m2) + ' ' + m2() + '</span></li>';
+      }).join('') + '</ul>';
+      var body = facts([
+        [t('c.dealer'), openLink('dealer', o.dealerId, L(dealer.name))], [t('c.date'), esc(date(o.date))],
+        [t('c.revenue'), money(orderRevenue(o))], [t('c.m2'), num(o.totalM2) + ' ' + m2()],
+      ]) + (o.blockedOnCredit ? '<p class="muted small">' + esc(t('sales.creditBlockedNote')) + '</p>' : '') + block(t('sales.linesTitle'), linesHtml);
+      return drawerFrame('k.salesOrder', o.orderNumber, statusChip(o.status) + (o.blockedOnCredit ? chip(t('s.creditHold'), 'bad', true) : ''), body);
+    },
+    dispatchLoad: function (d) {
+      var ordersHtml = '<ul class="linklist">' + d.orderIds.map(function (id) {
+        var o = by.salesOrders[id];
+        return '<li><span>' + openLink('salesOrder', id, o.orderNumber) + ' <span class="muted small">' + esc(L(by.dealers[o.dealerId].name)) + '</span></span><span class="num">' + num(o.totalM2) + ' ' + m2() + '</span></li>';
+      }).join('') + '</ul>';
+      var body = facts([
+        [t('c.driver'), openLink('employee', d.driverId, L(by.employees[d.driverId].name))], [t('c.date'), esc(date(d.date))],
+        [t('c.pallets'), num(d.pallets)], [t('c.status'), statusChip(d.status)],
+      ]) + block(t('dispatch.ordersTitle'), ordersHtml);
+      return drawerFrame('k.dispatchLoad', d.loadNumber, chip(num(d.orderIds.length) + ' ' + t('c.orders'), '', true), body);
+    },
   };
-  var KIND_SOURCE = { product: 'products', material: 'materials', recipe: 'recipes', asset: 'assets', part: 'spareParts', warehouse: 'warehouses', supplier: 'suppliers', dealer: 'dealers', employee: 'employees', shiftReport: 'shiftReports', labTest: 'labTests', lot: 'sortingLots' };
+  var KIND_SOURCE = {
+    product: 'products', material: 'materials', recipe: 'recipes', asset: 'assets', part: 'spareParts', warehouse: 'warehouses', supplier: 'suppliers', dealer: 'dealers', employee: 'employees',
+    shiftReport: 'shiftReports', labTest: 'labTests', lot: 'sortingLots', stockPosition: 'stockPositions', salesOrder: 'salesOrders', dispatchLoad: 'dispatchLoads',
+  };
 
   function renderDrawer() {
     var top = state.drawer[state.drawer.length - 1];
@@ -1306,6 +1433,9 @@
     exec: renderExecDashboard, lines: renderProductionDashboard, quality: renderQualityDashboard,
     planning: renderPlanningPage, prep: renderPrepPage, glaze: renderGlazePage,
     sorting: function () { return renderListPage('sortingLots'); },
+    stores: function () { return renderListPage('stock'); },
+    sales: function () { return renderListPage('salesOrders'); },
+    dispatch: function () { return renderListPage('dispatchLoads'); },
   };
   function renderPage() {
     if (state.page === 'profile') return renderProfile();
