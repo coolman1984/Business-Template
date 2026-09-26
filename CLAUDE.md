@@ -1,5 +1,11 @@
 # Agent instructions — Business Systems Factory
 
+## Design source of truth
+- Before any UI, UX, dashboard, table, form, navigation or responsive-layout change, read `DESIGN.md` first.
+- `DESIGN.md` is the shared visual and interaction contract: tokens and reusable components come before page-specific styling; preserve RTL/LTR, light/dark, accessibility, responsiveness and restrained motion.
+- For broad platform-evolution work, read `docs/CLAUDE_OPUS_5_5_TRANSFORMATION_PROMPT.md` as the strategic brief, then record accepted implementation decisions in the normal source-of-truth architecture documents.
+- Visual modernization must never weaken tenant isolation, authorization, audit, transaction safety, compatibility or tests.
+
 The founding design is `docs/MASTER_PLAN.md` (Arabic). Read the relevant sections before any change. Contracts for authorization, audit, transactions and migrations are acceptance conditions, not suggestions.
 
 ## Hard rules (from MASTER_PLAN §20)
