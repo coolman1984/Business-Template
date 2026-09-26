@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, can, describeError, get, runCommand, type Me } from '../api';
+import { useI18n } from '../i18n';
 import { formatDate } from './OrderFiles';
 
 interface Job {
@@ -15,12 +16,19 @@ interface Job {
   finishedAt: string | null;
 }
 
-const statusLabel = { queued: 'في الانتظار', running: 'قيد التنفيذ', succeeded: 'تمت', failed: 'متعثرة', cancelled: 'ملغاة' } as const;
 const statusClass = { queued: '', running: 'warn', succeeded: 'submitted', failed: 'cancelled', cancelled: '' } as const;
-const kindLabel: Record<string, string> = { 'files.scan': 'فحص ملف مرفوع' };
 
 /** Background work: the viewer's own jobs, or the whole company's for job managers. */
 export function Jobs({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () => void }) {
+  const { t, locale } = useI18n();
+  const statusLabel = {
+    queued: t('jobs.status.queued'),
+    running: t('jobs.status.running'),
+    succeeded: t('jobs.status.succeeded'),
+    failed: t('jobs.status.failed'),
+    cancelled: t('jobs.status.cancelled'),
+  } as const;
+  const kindLabel = (kind: string) => (kind === 'files.scan' ? t('jobs.kind.files.scan') : kind);
   const [data, setData] = useState<{ scope: 'company' | 'mine'; jobs: Job[] } | null>(null);
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const canManage = can(me, 'jobs', 'manage');
@@ -33,14 +41,14 @@ export function Jobs({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () => v
   const active = data?.jobs.some((j) => j.status === 'queued' || j.status === 'running');
   useEffect(() => {
     if (!active) return;
-    const t = setInterval(load, 3000);
-    return () => clearInterval(t);
+    const timer = setInterval(load, 3000);
+    return () => clearInterval(timer);
   }, [active, load]);
 
   const act = async (command: 'jobs.retry' | 'jobs.cancel', job: Job) => {
     try {
       await runCommand(me, command, { jobId: job.id });
-      setMessage({ kind: 'ok', text: command === 'jobs.retry' ? 'أُعيدت المهمة إلى الانتظار.' : 'أُلغيت المهمة.' });
+      setMessage({ kind: 'ok', text: command === 'jobs.retry' ? t('jobs.retried') : t('jobs.cancelled') });
       load();
     } catch (e) {
       setMessage({ kind: 'error', text: describeError(e) });
@@ -51,25 +59,25 @@ export function Jobs({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () => v
   return (
     <section>
       <div className="row spread">
-        <h1>المهام الخلفية</h1>
-        <button onClick={load}>تحديث</button>
+        <h1>{t('jobs.title')}</h1>
+        <button onClick={load}>{t('jobs.refresh')}</button>
       </div>
-      <p className="muted small">{data?.scope === 'company' ? 'كل مهام الشركة.' : 'المهام التي بدأتها أنت.'} المهمة المتعثرة تُعاد تلقائيًا قبل أن تتوقف.</p>
+      <p className="muted small">{data?.scope === 'company' ? t('jobs.scopeCompany') : t('jobs.scopeMine')} {t('jobs.retryNote')}</p>
       {message && <p className={message.kind === 'error' ? 'error' : 'ok'} role="status">{message.text}</p>}
       <div className="card scroll">
         {data === null ? (
-          <p className="muted">جارٍ التحميل…</p>
+          <p className="muted">{t('common.loading')}</p>
         ) : data.jobs.length === 0 ? (
-          <p className="muted">لا توجد مهام.</p>
+          <p className="muted">{t('jobs.empty')}</p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>المهمة</th>
-                <th>الحالة</th>
-                <th>المحاولات</th>
-                <th>بدأها</th>
-                <th>متى</th>
+                <th>{t('jobs.table.job')}</th>
+                <th>{t('jobs.table.status')}</th>
+                <th>{t('jobs.table.attempts')}</th>
+                <th>{t('jobs.table.owner')}</th>
+                <th>{t('jobs.table.when')}</th>
                 <th />
               </tr>
             </thead>
@@ -77,18 +85,18 @@ export function Jobs({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () => v
               {data.jobs.map((j) => (
                 <tr key={j.id}>
                   <td>
-                    {kindLabel[j.kind] ?? j.kind}
+                    {kindLabel(j.kind)}
                     {j.lastError && <div className="small muted" dir="auto">{j.lastError}</div>}
                   </td>
                   <td><span className={`badge ${statusClass[j.status]}`}>{statusLabel[j.status]}</span></td>
-                  <td>{j.attempts} من {j.maxAttempts}</td>
+                  <td>{t('jobs.attemptsOf', { attempts: j.attempts, max: j.maxAttempts })}</td>
                   <td>{j.owner}</td>
-                  <td className="small">{formatDate(j.createdAt)}</td>
+                  <td className="small">{formatDate(j.createdAt, locale)}</td>
                   <td>
                     <div className="actions">
-                    {canManage && j.status === 'failed' && <button onClick={() => act('jobs.retry', j)}>إعادة</button>}
+                    {canManage && j.status === 'failed' && <button onClick={() => act('jobs.retry', j)}>{t('jobs.retry')}</button>}
                     {canManage && (j.status === 'failed' || j.status === 'queued') && (
-                      <button className="danger" onClick={() => act('jobs.cancel', j)}>إلغاء</button>
+                      <button className="danger" onClick={() => act('jobs.cancel', j)}>{t('jobs.cancel')}</button>
                     )}
                   </div>
                   </td>

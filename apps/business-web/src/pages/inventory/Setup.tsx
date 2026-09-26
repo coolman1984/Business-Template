@@ -1,13 +1,18 @@
 import { useState, type FormEvent } from 'react';
 import { ApiError, describeError, runCommand, type Me } from '../../api';
+import { useI18n } from '../../i18n';
 import type { Item, Warehouse } from './types';
+
+// Stored with the item, so it must not depend on the language of whoever creates it.
+const DEFAULT_UNIT = 'قطعة';
 
 /** Items (company-wide) and warehouses (one branch each). Deactivating keeps history; nothing is deleted. */
 export function Setup({ me, items, warehouses, onChanged, onPolicyChanged }: { me: Me; items: Item[]; warehouses: Warehouse[]; onChanged: () => void; onPolicyChanged: () => void }) {
+  const { t } = useI18n();
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
-  const [item, setItem] = useState({ code: '', name: '', unit: 'قطعة' });
+  const [item, setItem] = useState({ code: '', name: '', unit: DEFAULT_UNIT });
   const [wh, setWh] = useState({ branchId: me.branches[0]?.id ?? '', code: '', name: '' });
-  const branchName = (id: string) => me.branches.find((b) => b.id === id)?.name ?? '—';
+  const branchName = (id: string) => me.branches.find((b) => b.id === id)?.name ?? t('common.dash');
 
   const run = async (name: string, input: unknown, ok: string) => {
     try {
@@ -24,11 +29,11 @@ export function Setup({ me, items, warehouses, onChanged, onPolicyChanged }: { m
 
   const addItem = async (e: FormEvent) => {
     e.preventDefault();
-    if (await run('inventory.item_create', item, `أُضيف الصنف ${item.code}.`)) setItem({ code: '', name: '', unit: item.unit });
+    if (await run('inventory.item_create', item, t('setup.itemAdded', { code: item.code }))) setItem({ code: '', name: '', unit: item.unit });
   };
   const addWarehouse = async (e: FormEvent) => {
     e.preventDefault();
-    if (await run('inventory.warehouse_create', wh, `أُضيف المخزن ${wh.name}.`)) setWh({ ...wh, code: '', name: '' });
+    if (await run('inventory.warehouse_create', wh, t('setup.warehouseAdded', { name: wh.name }))) setWh({ ...wh, code: '', name: '' });
   };
 
   return (
@@ -36,21 +41,21 @@ export function Setup({ me, items, warehouses, onChanged, onPolicyChanged }: { m
       {message && <p className={message.kind === 'error' ? 'error' : 'ok'} role="status">{message.text}</p>}
       <div className="split-even">
         <section className="card">
-          <h2>الأصناف</h2>
+          <h2>{t('setup.items')}</h2>
           <form className="row" onSubmit={addItem}>
             <label>
-              الكود
+              {t('setup.code')}
               <input dir="ltr" value={item.code} onChange={(e) => setItem({ ...item, code: e.target.value.replace(/\s/g, '') })} required maxLength={40} size={10} />
             </label>
             <label className="grow">
-              الاسم
+              {t('setup.name')}
               <input value={item.name} onChange={(e) => setItem({ ...item, name: e.target.value })} required maxLength={200} />
             </label>
             <label>
-              الوحدة
+              {t('setup.unit')}
               <input value={item.unit} onChange={(e) => setItem({ ...item, unit: e.target.value })} required maxLength={20} size={6} />
             </label>
-            <button className="primary">إضافة</button>
+            <button className="primary">{t('setup.add')}</button>
           </form>
           <div className="scroll">
             <table>
@@ -61,8 +66,8 @@ export function Setup({ me, items, warehouses, onChanged, onPolicyChanged }: { m
                     <td>{i.name}</td>
                     <td className="muted">{i.unit}</td>
                     <td>
-                      <button className="link" onClick={() => run('inventory.item_update', { itemId: i.id, expectedVersion: i.version, active: !i.active }, i.active ? `أُوقف ${i.name}.` : `فُعّل ${i.name}.`)}>
-                        {i.active ? 'إيقاف' : 'تفعيل'}
+                      <button className="link" onClick={() => run('inventory.item_update', { itemId: i.id, expectedVersion: i.version, active: !i.active }, i.active ? t('setup.itemDeactivated', { name: i.name }) : t('setup.itemActivated', { name: i.name }))}>
+                        {i.active ? t('setup.deactivate') : t('setup.activate')}
                       </button>
                     </td>
                   </tr>
@@ -72,10 +77,10 @@ export function Setup({ me, items, warehouses, onChanged, onPolicyChanged }: { m
           </div>
         </section>
         <section className="card">
-          <h2>المخازن</h2>
+          <h2>{t('setup.warehouses')}</h2>
           <form className="row" onSubmit={addWarehouse}>
             <label>
-              الفرع
+              {t('setup.branch')}
               <select value={wh.branchId} onChange={(e) => setWh({ ...wh, branchId: e.target.value })}>
                 {me.branches.map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
@@ -83,14 +88,14 @@ export function Setup({ me, items, warehouses, onChanged, onPolicyChanged }: { m
               </select>
             </label>
             <label>
-              الكود
+              {t('setup.code')}
               <input dir="ltr" value={wh.code} onChange={(e) => setWh({ ...wh, code: e.target.value.replace(/\s/g, '') })} required maxLength={20} size={8} />
             </label>
             <label className="grow">
-              الاسم
+              {t('setup.name')}
               <input value={wh.name} onChange={(e) => setWh({ ...wh, name: e.target.value })} required maxLength={200} />
             </label>
-            <button className="primary">إضافة</button>
+            <button className="primary">{t('setup.add')}</button>
           </form>
           <table>
             <tbody>
@@ -100,8 +105,8 @@ export function Setup({ me, items, warehouses, onChanged, onPolicyChanged }: { m
                   <td>{w.name}</td>
                   <td className="muted">{branchName(w.branchId)}</td>
                   <td>
-                    <button className="link" onClick={() => run('inventory.warehouse_update', { warehouseId: w.id, expectedVersion: w.version, active: !w.active }, w.active ? `أُوقف ${w.name}.` : `فُعّل ${w.name}.`)}>
-                      {w.active ? 'إيقاف' : 'تفعيل'}
+                    <button className="link" onClick={() => run('inventory.warehouse_update', { warehouseId: w.id, expectedVersion: w.version, active: !w.active }, w.active ? t('setup.warehouseDeactivated', { name: w.name }) : t('setup.warehouseActivated', { name: w.name }))}>
+                      {w.active ? t('setup.deactivate') : t('setup.activate')}
                     </button>
                   </td>
                 </tr>

@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { describeError, post } from '../api';
+import { useI18n } from '../i18n';
 
 export function Login({ onSignedIn }: { onSignedIn: () => void }) {
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -24,17 +26,17 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <main className="center">
       <form className="card narrow" onSubmit={submit}>
-        <h1>تسجيل الدخول</h1>
+        <h1>{t('login.title')}</h1>
         <label>
-          البريد الإلكتروني
+          {t('login.email')}
           <input type="email" dir="ltr" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </label>
         <label>
-          كلمة المرور
+          {t('login.password')}
           <input type="password" dir="ltr" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </label>
         {error && <p className="error" role="alert">{error}</p>}
-        <button className="primary" disabled={busy}>{busy ? 'جارٍ الدخول…' : 'دخول'}</button>
+        <button className="primary" disabled={busy}>{busy ? t('login.submitting') : t('login.submit')}</button>
       </form>
     </main>
   );

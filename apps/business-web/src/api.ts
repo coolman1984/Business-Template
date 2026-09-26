@@ -1,4 +1,6 @@
 /** Thin client for the platform API. The server enforces every rule; this only shapes requests. */
+import { ar } from './i18n/ar';
+import { en } from './i18n/en';
 
 export class ApiError extends Error {
   constructor(
@@ -44,6 +46,11 @@ export interface Me {
   capabilities: { resource: string; action: string; branchIds: string[] }[];
 }
 
+/** Server-provided labels carry both languages; pick the one matching the active UI locale. */
+export function pickLabel(label: Label, locale: 'ar' | 'en'): string {
+  return label[locale];
+}
+
 export function can(me: Me, resource: string, action: string, branchId?: string): boolean {
   const c = me.capabilities.find((x) => x.resource === resource && x.action === action);
   if (!c) return false;
@@ -72,54 +79,19 @@ export function uploadRaw<T>(me: Me, url: string, file: File, idempotencyKey = c
   }, file);
 }
 
-const messages: Record<string, string> = {
-  forbidden: 'ليست لديك صلاحية لهذه العملية.',
-  delegation_ceiling: 'لا يمكنك منح صلاحية لا تملكها أنت في هذا النطاق.',
-  self_change: 'لا يمكنك تعديل صلاحياتك بنفسك؛ اطلب ذلك من مدير آخر.',
-  policy_changed: 'تغيرت صلاحياتك منذ فتح الصفحة. أعد التحميل ثم حاول مرة أخرى.',
-  stale_version: 'عدّل شخص آخر هذا السجل. أعد التحميل ثم حاول مرة أخرى.',
-  last_administrator: 'هذا التغيير سيترك الشركة بلا مدير صلاحيات.',
-  invalid_input: 'البيانات غير مكتملة أو غير صحيحة.',
-  not_found: 'العنصر غير موجود.',
-  file_too_large: 'الملف أكبر من الحد المسموح (٢٥ ميجا).',
-  not_deletable: 'الطلب المعتمد لا يُحذف؛ يمكن إلغاؤه فقط.',
-  already_deleted: 'العنصر موجود في سلة المحذوفات بالفعل.',
-  not_deleted: 'العنصر ليس في سلة المحذوفات.',
-  parent_deleted: 'استرجع الطلب صاحب هذا الملف أولًا.',
-  not_failed: 'لا يُعاد إلا المهام المتعثرة.',
-  not_cancellable: 'لا تُلغى إلا المهام المنتظرة أو المتعثرة.',
-  insufficient_stock: 'الرصيد لا يكفي، ولم يُرحّل شيء.',
-  not_draft: 'المستند لم يعد مسودة (رُحّل أو أُلغي). أعد التحميل.',
-  not_posted: 'لا يُعكس إلا مستند مُرحّل.',
-  already_reversed: 'هذا المستند عُكس من قبل.',
-  cannot_reverse_reversal: 'مستند العكس لا يُعكس؛ اعمل مستندًا جديدًا.',
-  duplicate_code: 'هذا الكود مستخدم بالفعل.',
-  unit_in_use: 'لا تتغير الوحدة بعد استخدام الصنف في مستند.',
-  item_inactive: 'في المستند صنف موقوف.',
-  warehouse_inactive: 'المخزن موقوف.',
-  no_change: 'لا يوجد تغيير للحفظ.',
-  import_has_errors: 'في الملف صفوف بها أخطاء. صححها وارفع الملف مرة أخرى.',
-  import_changed: 'البيانات تغيرت بعد المعاينة. ارفع الملف مرة أخرى.',
-  import_decided: 'تم التصرف في هذا الاستيراد من قبل.',
-  missing_columns: 'الملف يحتاج عمودين: «كود الصنف» و«الكمية». نزّل القالب.',
-  unsupported_file_type: 'المقبول ملفات إكسل الحديثة (xlsx) أو csv فقط.',
-  not_a_workbook: 'الملف تالف أو ليس ملف إكسل.',
-  workbook_too_large_or_damaged: 'الملف تالف أو أكبر من المسموح.',
-  macros_not_allowed: 'ملفات الماكرو غير مقبولة.',
-  too_many_rows: 'عدد الصفوف أكبر من المسموح (٢٠ ألف صف).',
-  too_many_columns: 'عدد الأعمدة أكبر من المسموح.',
-  empty_file: 'الملف فارغ.',
-  csv_not_utf8: 'احفظ الملف بترميز UTF-8.',
-  invalid_transition: 'لا يمكن نقل الطلب لهذه الحالة الآن. أعد التحميل.',
-  parts_not_allowed: 'تُصرف القطع أثناء الفحص أو الإصلاح فقط.',
-  other_branch_warehouse: 'القطع تُصرف من مخزن فرع الطلب نفسه.',
-  INVALID_EMAIL_OR_PASSWORD: 'البريد أو كلمة المرور غير صحيحة.',
-};
+let errorLocale: 'ar' | 'en' = 'ar';
+/** Set by I18nProvider whenever the active locale changes, so describeError can stay locale-aware without changing its signature at every call site. */
+export function setErrorLocale(locale: 'ar' | 'en') {
+  errorLocale = locale;
+}
 
+/** Turns a server or network failure into a sentence from the translation files (keys `error.<code>`). */
 export function describeError(error: unknown): string {
+  const dict = errorLocale === 'en' ? en : ar;
+  const pick = (code: string | undefined) => (code ? dict[`error.${code}`] ?? ar[`error.${code}`] : undefined);
   if (error instanceof ApiError) {
     const reason = typeof error.details.reasonCode === 'string' ? error.details.reasonCode : undefined;
-    return messages[reason ?? ''] ?? messages[error.code] ?? 'حدث خطأ غير متوقع. لم يُحفظ شيء.';
+    return pick(reason) ?? pick(error.code) ?? pick('generic') ?? '';
   }
-  return 'تعذر الاتصال بالخادم.';
+  return pick('network') ?? '';
 }

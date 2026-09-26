@@ -11,6 +11,18 @@ importers:
       '@fastify/static':
         specifier: ^10.1.4
         version: 10.1.4
+      '@fontsource/instrument-serif':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/inter':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/noto-naskh-arabic':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/noto-sans-arabic':
+        specifier: 5.3.0
+        version: 5.3.0
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -445,6 +457,18 @@ packages:
 
   '@fastify/static@10.1.4':
     resolution: {integrity: sha512-YWYmXV0c3t/3DDyV32kRXJTgTY16FOkqtQ4mmBjbkWeukGR5n+Sr+7ppknNpS7hiRPrLU9zcySZZ1nLJVHTZkg==}
+
+  '@fontsource/instrument-serif@5.3.0':
+    resolution: {integrity: sha512-mDiaIg0u67sYV59fie92Wz4sM8UiVlbL7fLxnFPCKkX15DMASEnQTREbaP5S5/3DCcsoAOcQ0sV9E4AeY4QqYQ==}
+
+  '@fontsource/inter@5.3.0':
+    resolution: {integrity: sha512-RofMylZmjlJEfELXeNHFWBRcSs75rGU/6bV2S2jfnvv/3rPXPGe0LgUJTklcHZ9lM4OZmAVFhcJPnACfb91A3g==}
+
+  '@fontsource/noto-naskh-arabic@5.3.0':
+    resolution: {integrity: sha512-S/GDgQ6mh/PKo4mz5+eXNYbEarvpI7yh6eCdOz8tTVbeM7+OUiacIEscaYEibr/+egDtGbO2ZB00sjy1bJC1kQ==}
+
+  '@fontsource/noto-sans-arabic@5.3.0':
+    resolution: {integrity: sha512-i3t6GR0LOReyJVEk+YfYCnxv53wuIelg7Y9NGNvOq4Diq/EP0YszaGXkQwfQNigLjfO4POrLaPGM0sNliGYk7A==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -1491,6 +1515,14 @@ snapshots:
       fastify-plugin: 6.0.0
       fastq: 1.20.3
       glob: 13.0.6
+
+  '@fontsource/instrument-serif@5.3.0': {}
+
+  '@fontsource/inter@5.3.0': {}
+
+  '@fontsource/noto-naskh-arabic@5.3.0': {}
+
+  '@fontsource/noto-sans-arabic@5.3.0': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 

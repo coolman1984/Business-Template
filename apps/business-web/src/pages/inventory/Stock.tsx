@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { can, describeError, get, type Me } from '../../api';
+import { useI18n } from '../../i18n';
 import { Balances } from './Balances';
 import { Documents } from './Documents';
 import { Import } from './Import';
@@ -9,6 +10,7 @@ import type { Item, Warehouse } from './types';
 type View = 'balances' | 'documents' | 'import' | 'setup';
 
 export function Stock({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () => void }) {
+  const { t } = useI18n();
   const [items, setItems] = useState<Item[] | null>(null);
   const [warehouses, setWarehouses] = useState<Warehouse[] | null>(null);
   const [error, setError] = useState('');
@@ -28,20 +30,20 @@ export function Stock({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () => 
   useEffect(load, [load]);
 
   const views: { key: View; label: string; show: boolean }[] = [
-    { key: 'balances', label: 'الأرصدة', show: true },
-    { key: 'documents', label: 'المستندات', show: true },
-    { key: 'import', label: 'استيراد أرصدة افتتاحية', show: canImport },
-    { key: 'setup', label: 'الأصناف والمخازن', show: canSetup },
+    { key: 'balances', label: t('inventory.tabs.balances'), show: true },
+    { key: 'documents', label: t('inventory.tabs.documents'), show: true },
+    { key: 'import', label: t('inventory.tabs.import'), show: canImport },
+    { key: 'setup', label: t('inventory.tabs.setup'), show: canSetup },
   ];
 
   if (error) return <p className="error">{error}</p>;
-  if (!items || !warehouses) return <p className="muted">جارٍ التحميل…</p>;
+  if (!items || !warehouses) return <p className="muted">{t('common.loading')}</p>;
   const empty = items.length === 0 || warehouses.length === 0;
 
   return (
     <section>
-      <h1>المخزون</h1>
-      <nav className="segmented" aria-label="أقسام المخزون">
+      <h1>{t('inventory.title')}</h1>
+      <nav className="segmented" aria-label={t('inventory.sectionsLabel')}>
         {views.filter((v) => v.show).map((v) => (
           <button key={v.key} className={view === v.key ? 'tab active' : 'tab'} onClick={() => setView(v.key)}>
             {v.label}
@@ -50,7 +52,7 @@ export function Stock({ me, onPolicyChanged }: { me: Me; onPolicyChanged: () => 
       </nav>
       {empty && view !== 'setup' && (
         <p className="warn-box">
-          {canSetup ? 'ابدأ بإضافة الأصناف والمخازن من «الأصناف والمخازن».' : 'لا توجد أصناف أو مخازن متاحة لك بعد. اطلب من مدير الشركة إضافتها.'}
+          {canSetup ? t('inventory.emptySetupHint') : t('inventory.emptyNoAccessHint')}
         </p>
       )}
       {view === 'balances' && <Balances key={refreshKey} warehouses={warehouses} />}

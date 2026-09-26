@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { describeError, get, post } from '../api';
+import { useI18n } from '../i18n';
 
 interface Choice {
   membershipId: string;
@@ -8,6 +9,7 @@ interface Choice {
 }
 
 export function ChooseCompany({ onChosen, onSignOut }: { onChosen: () => void; onSignOut: () => void }) {
+  const { t } = useI18n();
   const [choices, setChoices] = useState<Choice[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,9 +37,9 @@ export function ChooseCompany({ onChosen, onSignOut }: { onChosen: () => void; o
   return (
     <main className="center">
       <div className="card narrow">
-        <h1>اختر الشركة</h1>
+        <h1>{t('chooseCompany.title')}</h1>
         {error && <p className="error" role="alert">{error}</p>}
-        {choices?.length === 0 && <p className="muted">لا توجد شركة نشطة مرتبطة بحسابك.</p>}
+        {choices?.length === 0 && <p className="muted">{t('chooseCompany.empty')}</p>}
         <ul className="choices">
           {choices?.map((c) => (
             <li key={c.membershipId}>
@@ -48,7 +50,7 @@ export function ChooseCompany({ onChosen, onSignOut }: { onChosen: () => void; o
             </li>
           ))}
         </ul>
-        <button className="link" onClick={onSignOut}>خروج</button>
+        <button className="link" onClick={onSignOut}>{t('shell.signOut')}</button>
       </div>
     </main>
   );

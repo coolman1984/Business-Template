@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { describeError, get } from '../../api';
+import { useI18n } from '../../i18n';
 import { formatDate } from '../OrderFiles';
 import { fmtQty, typeLabel, type DocType, type Warehouse } from './types';
 
@@ -25,12 +26,13 @@ interface Movement {
 
 /** Stock on hand. Each balance is shown with the sum of its movements, so the report proves itself. */
 export function Balances({ warehouses }: { warehouses: Warehouse[] }) {
+  const { t, locale } = useI18n();
   const [warehouseId, setWarehouseId] = useState('');
   const [rows, setRows] = useState<Balance[] | null>(null);
   const [error, setError] = useState('');
   const [ledgerFor, setLedgerFor] = useState<Balance | null>(null);
   const [ledger, setLedger] = useState<Movement[] | null>(null);
-  const whName = (id: string) => warehouses.find((w) => w.id === id)?.name ?? '—';
+  const whName = (id: string) => warehouses.find((w) => w.id === id)?.name ?? t('common.dash');
 
   useEffect(() => {
     setRows(null);
@@ -53,9 +55,9 @@ export function Balances({ warehouses }: { warehouses: Warehouse[] }) {
       {error && <p className="error">{error}</p>}
       <div className="row">
         <label>
-          المخزن
+          {t('balances.warehouse')}
           <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-            <option value="">كل المخازن</option>
+            <option value="">{t('balances.allWarehouses')}</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>{w.name}</option>
             ))}
@@ -64,19 +66,19 @@ export function Balances({ warehouses }: { warehouses: Warehouse[] }) {
       </div>
       <div className="card scroll">
         {rows === null ? (
-          <p className="muted">جارٍ التحميل…</p>
+          <p className="muted">{t('balances.loading')}</p>
         ) : shown.length === 0 ? (
-          <p className="muted">لا يوجد رصيد بعد. يبدأ الرصيد بترحيل استلام أو رصيد افتتاحي.</p>
+          <p className="muted">{t('balances.empty')}</p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>الكود</th>
-                <th>الصنف</th>
-                <th>المخزن</th>
-                <th>الرصيد</th>
-                <th>مطابقة الحركات</th>
-                <th>آخر حركة</th>
+                <th>{t('balances.table.code')}</th>
+                <th>{t('balances.table.item')}</th>
+                <th>{t('balances.table.warehouse')}</th>
+                <th>{t('balances.table.balance')}</th>
+                <th>{t('balances.table.reconciled')}</th>
+                <th>{t('balances.table.lastMovement')}</th>
               </tr>
             </thead>
             <tbody>
@@ -85,15 +87,15 @@ export function Balances({ warehouses }: { warehouses: Warehouse[] }) {
                   <td dir="ltr" className="mono">{r.code}</td>
                   <td>{r.name}</td>
                   <td>{whName(r.warehouseId)}</td>
-                  <td><strong>{fmtQty(r.onHand)}</strong> <span className="muted small">{r.unit}</span></td>
+                  <td><strong>{fmtQty(r.onHand, locale)}</strong> <span className="muted small">{r.unit}</span></td>
                   <td>
                     {r.onHand === r.movementTotal ? (
-                      <span className="badge submitted" title="الرصيد يساوي مجموع الحركات">✓ مطابق</span>
+                      <span className="badge submitted" title={t('balances.reconciledTitle')}>{t('balances.reconciled')}</span>
                     ) : (
-                      <span className="badge cancelled">غير مطابق</span>
+                      <span className="badge cancelled">{t('balances.notReconciled')}</span>
                     )}
                   </td>
-                  <td className="small">{r.lastMovementAt ? formatDate(r.lastMovementAt) : '—'}</td>
+                  <td className="small">{r.lastMovementAt ? formatDate(r.lastMovementAt, locale) : t('common.dash')}</td>
                 </tr>
               ))}
             </tbody>
@@ -103,35 +105,35 @@ export function Balances({ warehouses }: { warehouses: Warehouse[] }) {
       {ledgerFor && (
         <div className="card">
           <div className="row spread">
-            <h2>حركة {ledgerFor.name} — {whName(ledgerFor.warehouseId)}</h2>
-            <button className="link" onClick={() => setLedgerFor(null)}>إغلاق</button>
+            <h2>{t('balances.ledgerTitle', { item: ledgerFor.name, warehouse: whName(ledgerFor.warehouseId) })}</h2>
+            <button className="link" onClick={() => setLedgerFor(null)}>{t('balances.close')}</button>
           </div>
           {ledger === null ? (
-            <p className="muted">جارٍ التحميل…</p>
+            <p className="muted">{t('balances.loading')}</p>
           ) : (
             <div className="scroll">
               <table>
                 <thead>
                   <tr>
-                    <th>المستند</th>
-                    <th>النوع</th>
-                    <th>المرجع</th>
-                    <th>الكمية</th>
-                    <th>الرصيد بعدها</th>
-                    <th>رحّله</th>
-                    <th>متى</th>
+                    <th>{t('balances.ledger.document')}</th>
+                    <th>{t('balances.ledger.type')}</th>
+                    <th>{t('balances.ledger.reference')}</th>
+                    <th>{t('balances.ledger.quantity')}</th>
+                    <th>{t('balances.ledger.balanceAfter')}</th>
+                    <th>{t('balances.ledger.postedBy')}</th>
+                    <th>{t('balances.ledger.when')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ledger.map((m) => (
                     <tr key={m.documentNumber}>
                       <td dir="ltr" className="mono">{m.documentNumber}</td>
-                      <td>{typeLabel[m.type]}</td>
-                      <td className="small">{m.reference ?? '—'}</td>
-                      <td className={m.quantity.startsWith('-') ? 'out' : 'in'} dir="ltr">{m.quantity.startsWith('-') ? '' : '+'}{fmtQty(m.quantity)}</td>
-                      <td><strong>{fmtQty(m.balanceAfter)}</strong></td>
+                      <td>{typeLabel(t, m.type)}</td>
+                      <td className="small">{m.reference ?? t('common.dash')}</td>
+                      <td className={m.quantity.startsWith('-') ? 'out' : 'in'} dir="ltr">{m.quantity.startsWith('-') ? '' : '+'}{fmtQty(m.quantity, locale)}</td>
+                      <td><strong>{fmtQty(m.balanceAfter, locale)}</strong></td>
                       <td>{m.postedBy}</td>
-                      <td className="small">{formatDate(m.postedAt)}</td>
+                      <td className="small">{formatDate(m.postedAt, locale)}</td>
                     </tr>
                   ))}
                 </tbody>

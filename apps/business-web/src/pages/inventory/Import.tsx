@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, can, describeError, get, runCommand, uploadRaw, type Me } from '../../api';
+import { useI18n } from '../../i18n';
 import { formatDate } from '../OrderFiles';
 import { fmtQty, type Warehouse } from './types';
 
@@ -28,23 +29,10 @@ interface ImportRun {
   rows?: StagedRow[];
 }
 
-const rowError: Record<string, string> = {
-  code_required: 'الكود فارغ',
-  code_invalid: 'كود غير صالح',
-  quantity_required: 'الكمية فارغة',
-  quantity_invalid: 'الكمية ليست رقمًا صحيحًا (حتى ٣ أرقام عشرية)',
-  quantity_zero: 'الكمية صفر',
-  formula_not_accepted: 'الخلية معادلة؛ اكتب القيمة نفسها',
-  duplicate_row: 'الصنف مكرر في الملف',
-  unknown_item: 'صنف غير موجود',
-  item_inactive: 'صنف موقوف',
-  already_has_stock: 'للصنف حركة في هذا المخزن بالفعل',
-  opening_pending: 'للصنف رصيد افتتاحي ينتظر الترحيل',
-};
-const statusText = { awaiting_confirmation: 'بانتظار التأكيد', committed: 'تم التأكيد', cancelled: 'ملغى' } as const;
-
 /** Upload → preview with per-row reasons → confirm into a draft opening document. Nothing moves stock here. */
 export function Import({ me, warehouses, onDone, onPolicyChanged }: { me: Me; warehouses: Warehouse[]; onDone: () => void; onPolicyChanged: () => void }) {
+  const { t, has, locale } = useI18n();
+  const rowError = (code: string) => (has(`import.rowError.${code}`) ? t(`import.rowError.${code}`) : code);
   const usable = warehouses.filter((w) => w.active && can(me, 'stock', 'import', w.branchId));
   const [warehouseId, setWarehouseId] = useState(usable[0]?.id ?? '');
   const [runs, setRuns] = useState<ImportRun[]>([]);
@@ -52,7 +40,7 @@ export function Import({ me, warehouses, onDone, onPolicyChanged }: { me: Me; wa
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  const whName = (id: string) => warehouses.find((w) => w.id === id)?.name ?? '—';
+  const whName = (id: string) => warehouses.find((w) => w.id === id)?.name ?? t('common.dash');
 
   const load = useCallback(() => {
     get<{ imports: ImportRun[] }>('/inventory/imports').then((r) => setRuns(r.imports)).catch(() => {});
@@ -83,13 +71,13 @@ export function Import({ me, warehouses, onDone, onPolicyChanged }: { me: Me; wa
   const confirm = async (run: ImportRun, acknowledgeDuplicate = false) => {
     try {
       await runCommand(me, 'stock.import_confirm', { importId: run.id, expectedVersion: run.version, acknowledgeDuplicate });
-      setMessage({ kind: 'ok', text: 'أُنشئت مسودة رصيد افتتاحي. راجعها في «المستندات» ثم رحّلها ليظهر الرصيد.' });
+      setMessage({ kind: 'ok', text: t('import.confirmed') });
       setPreview(null);
       load();
       onDone();
     } catch (e) {
       if (e instanceof ApiError && e.code === 'duplicate_file') {
-        if (window.confirm('نفس هذا الملف استُورد من قبل في هذا المخزن. هل تريد استيراده مرة أخرى فعلًا؟')) return confirm(run, true);
+        if (window.confirm(t('import.duplicateConfirm'))) return confirm(run, true);
         return;
       }
       fail(e);
@@ -111,15 +99,15 @@ export function Import({ me, warehouses, onDone, onPolicyChanged }: { me: Me; wa
       {message && <p className={message.kind === 'error' ? 'error' : 'ok'} role="status">{message.text}</p>}
       {usable.length > 0 && (
         <div className="card">
-          <h2>استيراد أرصدة افتتاحية</h2>
+          <h2>{t('import.title')}</h2>
           <ol className="steps small">
-            <li>نزّل <a href="/inventory/import-template.csv">القالب</a> أو استخدم ملف إكسل فيه عمودان: «كود الصنف» و«الكمية».</li>
-            <li>ارفع الملف: نعرض لك كل صف وسبب أي خطأ، ولا يتغير أي رصيد.</li>
-            <li>أكّد: تُنشأ مسودة رصيد افتتاحي، ويرحّلها صاحب صلاحية الاعتماد.</li>
+            <li>{t('import.step1a')} <a href="/inventory/import-template.csv">{t('import.step1Template')}</a> {t('import.step1b')}</li>
+            <li>{t('import.step2')}</li>
+            <li>{t('import.step3')}</li>
           </ol>
           <div className="row">
             <label>
-              المخزن
+              {t('import.warehouse')}
               <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
                 {usable.map((w) => (
                   <option key={w.id} value={w.id}>{w.name}</option>
@@ -128,7 +116,7 @@ export function Import({ me, warehouses, onDone, onPolicyChanged }: { me: Me; wa
             </label>
             <input ref={input} type="file" accept=".xlsx,.csv" hidden onChange={upload} />
             <button className="primary" disabled={busy || !warehouseId} onClick={() => input.current?.click()}>
-              {busy ? 'جارٍ الفحص…' : 'اختيار ملف'}
+              {busy ? t('import.scanning') : t('import.chooseFile')}
             </button>
           </div>
         </div>
@@ -137,36 +125,36 @@ export function Import({ me, warehouses, onDone, onPolicyChanged }: { me: Me; wa
       {preview && (
         <div className="card">
           <div className="row spread">
-            <h2>معاينة «{preview.fileName}» — {whName(preview.warehouseId)}</h2>
+            <h2>{t('import.previewTitle', { file: preview.fileName, warehouse: whName(preview.warehouseId) })}</h2>
             <div className="row">
-              <span className="badge submitted">{preview.validRows} سليم</span>
-              {preview.invalidRows > 0 && <span className="badge cancelled">{preview.invalidRows} به خطأ</span>}
+              <span className="badge submitted">{t('import.validRows', { count: preview.validRows })}</span>
+              {preview.invalidRows > 0 && <span className="badge cancelled">{t('import.invalidRows', { count: preview.invalidRows })}</span>}
             </div>
           </div>
           {preview.earlierImports.length > 0 && (
             <p className="warn-box small">
-              نفس هذا الملف استُورد من قبل: {preview.earlierImports.map((e) => `${e.fileName}${e.document ? ` (${e.document})` : ''}`).join('، ')}
+              {t('import.duplicateWarning', { list: preview.earlierImports.map((e) => `${e.fileName}${e.document ? ` (${e.document})` : ''}`).join(locale === 'ar' ? '، ' : ', ') })}
             </p>
           )}
           <div className="scroll preview">
             <table>
               <thead>
                 <tr>
-                  <th>الصف</th>
-                  <th>الكود</th>
-                  <th>الصنف</th>
-                  <th>الكمية</th>
-                  <th>النتيجة</th>
+                  <th>{t('import.table.row')}</th>
+                  <th>{t('import.table.code')}</th>
+                  <th>{t('import.table.item')}</th>
+                  <th>{t('import.table.quantity')}</th>
+                  <th>{t('import.table.result')}</th>
                 </tr>
               </thead>
               <tbody>
                 {preview.rows?.map((r) => (
                   <tr key={r.row} className={r.errors.length ? 'bad' : ''}>
                     <td>{r.row}</td>
-                    <td dir="ltr" className="mono">{r.code ?? '—'}</td>
-                    <td>{r.itemName ?? '—'}</td>
-                    <td>{r.quantity === null ? '—' : r.errors.includes('quantity_invalid') ? <span dir="ltr">{r.quantity}</span> : `${fmtQty(r.quantity)} ${r.unit ?? ''}`}</td>
-                    <td>{r.errors.length ? r.errors.map((e) => rowError[e] ?? e).join('، ') : '✓'}</td>
+                    <td dir="ltr" className="mono">{r.code ?? t('common.dash')}</td>
+                    <td>{r.itemName ?? t('common.dash')}</td>
+                    <td>{r.quantity === null ? t('common.dash') : r.errors.includes('quantity_invalid') ? <span dir="ltr">{r.quantity}</span> : `${fmtQty(r.quantity, locale)} ${r.unit ?? ''}`}</td>
+                    <td>{r.errors.length ? r.errors.map((e) => rowError(e)).join(locale === 'ar' ? '، ' : ', ') : '✓'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -174,28 +162,28 @@ export function Import({ me, warehouses, onDone, onPolicyChanged }: { me: Me; wa
           </div>
           <div className="row">
             {preview.invalidRows === 0 ? (
-              <button className="primary" onClick={() => confirm(preview)}>تأكيد وإنشاء مسودة</button>
+              <button className="primary" onClick={() => confirm(preview)}>{t('import.confirmAndCreate')}</button>
             ) : (
-              <span className="error small">الملف يُقبل كاملًا أو لا يُقبل: صحح الصفوف المعلّمة وارفعه مرة أخرى.</span>
+              <span className="error small">{t('import.mustFixRows')}</span>
             )}
-            <button onClick={() => cancel(preview)}>إلغاء الاستيراد</button>
+            <button onClick={() => cancel(preview)}>{t('import.cancelImport')}</button>
           </div>
         </div>
       )}
 
       {runs.length > 0 && (
         <div className="card scroll">
-          <h2>آخر عمليات الاستيراد</h2>
+          <h2>{t('import.recentImports')}</h2>
           <table>
             <thead>
               <tr>
-                <th>الملف</th>
-                <th>المخزن</th>
-                <th>الصفوف</th>
-                <th>الحالة</th>
-                <th>المستند</th>
-                <th>بواسطة</th>
-                <th>متى</th>
+                <th>{t('import.table.file')}</th>
+                <th>{t('import.warehouse')}</th>
+                <th>{t('import.table.rows')}</th>
+                <th>{t('import.table.status')}</th>
+                <th>{t('import.table.document')}</th>
+                <th>{t('import.table.by')}</th>
+                <th>{t('import.table.when')}</th>
               </tr>
             </thead>
             <tbody>
@@ -204,10 +192,10 @@ export function Import({ me, warehouses, onDone, onPolicyChanged }: { me: Me; wa
                   <td>{r.fileName}</td>
                   <td>{whName(r.warehouseId)}</td>
                   <td>{r.validRows} / {r.totalRows}</td>
-                  <td><span className={`badge ${r.status === 'committed' ? 'submitted' : r.status === 'cancelled' ? 'cancelled' : 'warn'}`}>{statusText[r.status]}</span></td>
-                  <td dir="ltr" className="mono">{r.documentNumber ?? (r.documentStatus === 'draft' ? 'مسودة' : '—')}</td>
+                  <td><span className={`badge ${r.status === 'committed' ? 'submitted' : r.status === 'cancelled' ? 'cancelled' : 'warn'}`}>{t(`import.status.${r.status}`)}</span></td>
+                  <td dir="ltr" className="mono">{r.documentNumber ?? (r.documentStatus === 'draft' ? t('import.documentDraftLabel') : t('common.dash'))}</td>
                   <td>{r.createdBy}</td>
-                  <td className="small">{formatDate(r.createdAt)}</td>
+                  <td className="small">{formatDate(r.createdAt, locale)}</td>
                 </tr>
               ))}
             </tbody>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, can, describeError, get, runCommand, uploadFile, type Me } from '../api';
+import { useI18n, type Locale, type TFunc } from '../i18n';
 import { ReasonDialog } from '../components/ReasonDialog';
 
 interface FileVersion {
@@ -20,23 +21,17 @@ interface StoredFile {
   versions: FileVersion[];
 }
 
-const scanLabel = { pending: 'جارٍ الفحص', clean: 'سليم', rejected: 'مرفوض' } as const;
-const rejectLabel: Record<string, string> = {
-  archive_not_allowed: 'ملفات مضغوطة غير مسموحة',
-  executable: 'ملف تشغيلي',
-  unsupported_type: 'نوع غير مدعوم',
-  active_content: 'يحتوي على محتوى نشط',
-  extension_mismatch: 'الامتداد لا يطابق المحتوى',
-  content_mismatch: 'المحتوى تغيّر أثناء الرفع',
-  content_missing: 'المحتوى مفقود',
-};
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.csv,.txt,.xlsx,.docx';
 
-export const formatSize = (n: number) => (n < 1024 ? `${n} بايت` : n < 1048576 ? `${(n / 1024).toFixed(0)} ك.ب` : `${(n / 1048576).toFixed(1)} م.ب`);
-export const formatDate = (d: string) => new Date(d).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' });
+export const formatSize = (n: number, t: TFunc) =>
+  n < 1024 ? t('files.size.bytes', { n }) : n < 1048576 ? t('files.size.kb', { n: (n / 1024).toFixed(0) }) : t('files.size.mb', { n: (n / 1048576).toFixed(1) });
+export const formatDate = (d: string, locale: Locale) => new Date(d).toLocaleString(locale === 'ar' ? 'ar-EG' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' });
 
 /** Files attached to one record (an order, a service ticket…): upload, new version, download any clean version, recycle bin. */
 export function RecordFiles({ me, resource, recordId, branchId, onPolicyChanged }: { me: Me; resource: string; recordId: string; branchId: string; onPolicyChanged: () => void }) {
+  const { t, has, locale } = useI18n();
+  const scanLabel = { pending: t('files.scan.pending'), clean: t('files.scan.clean'), rejected: t('files.scan.rejected') } as const;
+  const rejectLabel = (code: string) => (has(`files.reject.${code}`) ? t(`files.reject.${code}`) : t('files.reject.default'));
   const [files, setFiles] = useState<StoredFile[] | null>(null);
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -59,8 +54,8 @@ export function RecordFiles({ me, resource, recordId, branchId, onPolicyChanged 
   const scanning = files?.some((f) => f.versions.some((v) => v.status === 'pending'));
   useEffect(() => {
     if (!scanning) return;
-    const t = setInterval(load, 3000);
-    return () => clearInterval(t);
+    const timer = setInterval(load, 3000);
+    return () => clearInterval(timer);
   }, [scanning, load]);
 
   const fail = (e: unknown) => {
@@ -75,7 +70,7 @@ export function RecordFiles({ me, resource, recordId, branchId, onPolicyChanged 
     setBusy(true);
     try {
       await uploadFile(me, url, file);
-      setMessage({ kind: 'ok', text: `تم استلام «${file.name}» وهو الآن قيد الفحص.` });
+      setMessage({ kind: 'ok', text: t('files.received', { name: file.name }) });
       load();
     } catch (e) {
       fail(e);
@@ -88,7 +83,7 @@ export function RecordFiles({ me, resource, recordId, branchId, onPolicyChanged 
     setDeleting(null);
     try {
       await runCommand(me, 'files.delete', { fileId: f.id, expectedVersion: f.version, reason });
-      setMessage({ kind: 'ok', text: `نُقل «${f.displayName}» إلى سلة المحذوفات.` });
+      setMessage({ kind: 'ok', text: t('files.deleted', { name: f.displayName }) });
       load();
     } catch (e) {
       fail(e);
@@ -102,11 +97,11 @@ export function RecordFiles({ me, resource, recordId, branchId, onPolicyChanged 
   return (
     <div className="files">
       <div className="row spread">
-        <strong>المرفقات</strong>
+        <strong>{t('files.title')}</strong>
         {canUpload && (
           <>
             <input ref={newFile} type="file" accept={ACCEPT} hidden onChange={() => send(`/records/${resource}/${recordId}/files`, newFile.current)} />
-            <button disabled={busy} onClick={() => newFile.current?.click()}>{busy ? 'جارٍ الرفع…' : 'رفع ملف'}</button>
+            <button disabled={busy} onClick={() => newFile.current?.click()}>{busy ? t('files.uploading') : t('files.upload')}</button>
           </>
         )}
       </div>
@@ -119,9 +114,9 @@ export function RecordFiles({ me, resource, recordId, branchId, onPolicyChanged 
       />
       {message && <p className={message.kind === 'error' ? 'error' : 'ok'} role="status">{message.text}</p>}
       {files === null ? (
-        <p className="muted small">جارٍ التحميل…</p>
+        <p className="muted small">{t('files.loading')}</p>
       ) : files.length === 0 ? (
-        <p className="muted small">لا توجد مرفقات. المسموح: PDF وصور وجداول ومستندات حتى ٢٥ ميجا.</p>
+        <p className="muted small">{t('files.empty')}</p>
       ) : (
         <ul className="file-list">
           {files.map((f) => {
@@ -133,21 +128,21 @@ export function RecordFiles({ me, resource, recordId, branchId, onPolicyChanged 
                     <strong>{f.displayName}</strong>
                     {latest && <span className={`badge scan-${latest.status}`}>{scanLabel[latest.status]}</span>}
                     <div className="muted small">
-                      الإصدار {latest?.number ?? '—'} · {latest ? formatSize(latest.sizeBytes) : ''}
-                      {latest?.status === 'rejected' && ` · ${rejectLabel[latest.rejectReason ?? ''] ?? 'مرفوض'}`}
+                      {t('files.version', { number: latest?.number ?? t('common.dash') })} · {latest ? formatSize(latest.sizeBytes, t) : ''}
+                      {latest?.status === 'rejected' && ` · ${rejectLabel(latest.rejectReason ?? '')}`}
                     </div>
                   </div>
                   <div className="row">
-                    <button disabled={!f.currentVersionId} onClick={() => download(f.id)} title={f.currentVersionId ? '' : 'لا يوجد إصدار سليم بعد'}>تنزيل</button>
+                    <button disabled={!f.currentVersionId} onClick={() => download(f.id)} title={f.currentVersionId ? '' : t('files.downloadDisabled')}>{t('files.download')}</button>
                     {canUpload && (
-                      <button disabled={busy} onClick={() => { newVersionFor.current = f.id; newVersion.current?.click(); }}>إصدار جديد</button>
+                      <button disabled={busy} onClick={() => { newVersionFor.current = f.id; newVersion.current?.click(); }}>{t('files.newVersion')}</button>
                     )}
                     {f.versions.length > 1 && (
                       <button className="link" onClick={() => setOpenHistory(openHistory === f.id ? null : f.id)}>
-                        {openHistory === f.id ? 'إخفاء السجل' : `كل الإصدارات (${f.versions.length})`}
+                        {openHistory === f.id ? t('files.hideHistory') : t('files.allVersions', { count: f.versions.length })}
                       </button>
                     )}
-                    {canDelete && <button className="danger" onClick={() => setDeleting(f)}>حذف</button>}
+                    {canDelete && <button className="danger" onClick={() => setDeleting(f)}>{t('files.delete')}</button>}
                   </div>
                 </div>
                 {openHistory === f.id && (
@@ -155,11 +150,11 @@ export function RecordFiles({ me, resource, recordId, branchId, onPolicyChanged 
                     <tbody>
                       {f.versions.map((v) => (
                         <tr key={v.id}>
-                          <td>الإصدار {v.number}{v.id === f.currentVersionId && <span className="badge submitted">الحالي</span>}</td>
+                          <td>{t('files.version', { number: v.number })}{v.id === f.currentVersionId && <span className="badge submitted">{t('files.current')}</span>}</td>
                           <td>{v.originalName}</td>
-                          <td>{formatSize(v.sizeBytes)}</td>
-                          <td>{formatDate(v.uploadedAt)}</td>
-                          <td>{v.status === 'clean' ? <button className="link" onClick={() => download(f.id, v.id)}>تنزيل</button> : <span className={`badge scan-${v.status}`}>{scanLabel[v.status]}</span>}</td>
+                          <td>{formatSize(v.sizeBytes, t)}</td>
+                          <td>{formatDate(v.uploadedAt, locale)}</td>
+                          <td>{v.status === 'clean' ? <button className="link" onClick={() => download(f.id, v.id)}>{t('files.download')}</button> : <span className={`badge scan-${v.status}`}>{scanLabel[v.status]}</span>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -171,7 +166,7 @@ export function RecordFiles({ me, resource, recordId, branchId, onPolicyChanged 
         </ul>
       )}
       {deleting && (
-        <ReasonDialog title={`نقل «${deleting.displayName}» إلى سلة المحذوفات`} confirmLabel="نقل للسلة" danger onConfirm={(r) => remove(deleting, r)} onCancel={() => setDeleting(null)} />
+        <ReasonDialog title={t('files.deleteDialog.title', { name: deleting.displayName })} confirmLabel={t('files.deleteDialog.confirm')} danger onConfirm={(r) => remove(deleting, r)} onCancel={() => setDeleting(null)} />
       )}
     </div>
   );
