@@ -78,6 +78,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@factory/engine-accounting':
+        specifier: workspace:*
+        version: link:../../packages/engine-accounting
       '@factory/engine-inventory':
         specifier: workspace:*
         version: link:../../packages/engine-inventory
@@ -98,6 +101,12 @@ importers:
         version: link:../../packages/recipe-maintenance-center
 
   apps/business-web: {}
+
+  packages/engine-accounting:
+    dependencies:
+      '@factory/platform-core':
+        specifier: workspace:*
+        version: link:../platform-core
 
   packages/engine-inventory:
     dependencies:
@@ -124,6 +133,9 @@ importers:
 
   packages/recipe-inventory-orders:
     dependencies:
+      '@factory/engine-accounting':
+        specifier: workspace:*
+        version: link:../engine-accounting
       '@factory/engine-inventory':
         specifier: workspace:*
         version: link:../engine-inventory

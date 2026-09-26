@@ -5,6 +5,7 @@ import { useTheme } from './theme/ThemeProvider';
 import {
   BuildingIcon,
   ClipboardIcon,
+  LedgerIcon,
   ListChecksIcon,
   LogOutIcon,
   MenuIcon,
@@ -15,6 +16,7 @@ import {
   TrashIcon,
   WrenchIcon,
 } from './design/icons';
+import { Accounting } from './pages/accounting/Accounting';
 import { ChooseCompany } from './pages/ChooseCompany';
 import { Login } from './pages/Login';
 import { Orders } from './pages/Orders';
@@ -25,7 +27,7 @@ import { Stock } from './pages/inventory/Stock';
 import { Tickets } from './pages/service/Tickets';
 
 type Stage = { kind: 'loading' } | { kind: 'signed-out' } | { kind: 'choose' } | { kind: 'ready'; me: Me };
-type PageKey = 'service' | 'orders' | 'stock' | 'recycle' | 'jobs' | 'permissions';
+type PageKey = 'accounting' | 'service' | 'orders' | 'stock' | 'recycle' | 'jobs' | 'permissions';
 
 export function App() {
   const { t, locale, toggleLocale } = useI18n();
@@ -69,6 +71,7 @@ export function App() {
   const canSeePermissions = can(me, 'permissions', 'view');
   const canSeeRecycle = can(me, 'orders', 'restore') || can(me, 'attachments', 'restore');
   const tabs: { key: PageKey; label: string; icon: typeof WrenchIcon; show: boolean }[] = [
+    { key: 'accounting', label: t('nav.accounting'), icon: LedgerIcon, show: can(me, 'journal', 'view') || can(me, 'financial_reports', 'view') || can(me, 'accounting_setup', 'manage') },
     { key: 'service', label: t('nav.service'), icon: WrenchIcon, show: can(me, 'service_tickets', 'view') },
     { key: 'orders', label: t('nav.orders'), icon: ClipboardIcon, show: can(me, 'orders', 'view') },
     { key: 'stock', label: t('nav.stock'), icon: PackageIcon, show: can(me, 'stock', 'view') || can(me, 'inventory_setup', 'manage') },
@@ -139,6 +142,8 @@ export function App() {
         <main className="content" key={locale}>
           {current === 'permissions' ? (
             <Permissions me={me} onPolicyChanged={refresh} />
+          ) : current === 'accounting' ? (
+            <Accounting me={me} onPolicyChanged={refresh} />
           ) : current === 'service' ? (
             <Tickets me={me} onPolicyChanged={refresh} />
           ) : current === 'stock' ? (

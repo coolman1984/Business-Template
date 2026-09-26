@@ -2,6 +2,10 @@ import { Kysely, PostgresDialect, type Transaction } from 'kysely';
 import pg from 'pg';
 import type { Database } from './schema.js';
 
+// A calendar date (accounting dates) stays the 'YYYY-MM-DD' text PostgreSQL sends. The driver's
+// default turns it into a Date at local midnight, which shifts the day in time zones west of UTC.
+pg.types.setTypeParser(pg.types.builtins.DATE, (value) => value);
+
 export type Db = Kysely<Database>;
 export type Tx = Transaction<Database>;
 

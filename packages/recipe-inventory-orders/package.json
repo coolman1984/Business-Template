@@ -8,6 +8,7 @@
   "dependencies": {
     "@factory/platform-core": "workspace:*",
     "@factory/engine-orders": "workspace:*",
-    "@factory/engine-inventory": "workspace:*"
+    "@factory/engine-inventory": "workspace:*",
+    "@factory/engine-accounting": "workspace:*"
   }
 }

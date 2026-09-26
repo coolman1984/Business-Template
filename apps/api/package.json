@@ -7,6 +7,7 @@
     "@factory/engine-orders": "workspace:*",
     "@factory/recipe-inventory-orders": "workspace:*",
     "@factory/engine-inventory": "workspace:*",
+    "@factory/engine-accounting": "workspace:*",
     "@factory/engine-service": "workspace:*",
     "@factory/recipe-maintenance-center": "workspace:*"
   }

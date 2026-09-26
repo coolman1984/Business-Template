@@ -4,6 +4,19 @@ import type { Readable } from 'node:stream';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import {
+  accountLedger,
+  balanceSheet,
+  getEntry,
+  getSettings,
+  incomeStatement,
+  listAccounts,
+  listEntries,
+  listFiscalYears,
+  listLegalEntities,
+  overview,
+  trialBalance,
+} from '@factory/engine-accounting';
+import {
   getDocument,
   itemLedger,
   listDocuments,
@@ -322,6 +335,62 @@ export function buildApp({ db, identity, authHandler, publicUrl, storage, webRoo
       await storage.delete(key);
       throw error;
     }
+  });
+
+  // ───── Accounting ─────
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  const uuidQuery = (value: string | undefined, name: string): string => {
+    if (!value || !uuidRe.test(value)) throw new ValidationError({ [name]: 'invalid' });
+    return value;
+  };
+  const dateQuery = (value: string | undefined, name: string): string => {
+    if (!value || !dateRe.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) throw new ValidationError({ [name]: 'invalid' });
+    return value;
+  };
+  type AccountingQuery = { legalEntityId?: string; accountId?: string; status?: string; from?: string; to?: string; asOf?: string; includeClosing?: string };
+
+  app.get('/accounting/legal-entities', async (request) => ({ legalEntities: await listLegalEntities(db, await contextOf(request)) }));
+  app.get('/accounting/accounts', async (request) => ({ accounts: await listAccounts(db, await contextOf(request)) }));
+  app.get<{ Querystring: AccountingQuery }>('/accounting/settings', async (request) =>
+    getSettings(db, await contextOf(request), uuidQuery(request.query.legalEntityId, 'legalEntityId')),
+  );
+  app.get<{ Querystring: AccountingQuery }>('/accounting/fiscal-years', async (request) => ({
+    years: await listFiscalYears(db, await contextOf(request), uuidQuery(request.query.legalEntityId, 'legalEntityId')),
+  }));
+  app.get<{ Querystring: AccountingQuery }>('/accounting/entries', async (request) => {
+    const { legalEntityId, status, from, to } = request.query;
+    if (status !== undefined && !['draft', 'posted', 'cancelled'].includes(status)) throw new ValidationError({ status: 'invalid' });
+    return {
+      entries: await listEntries(db, await contextOf(request), {
+        legalEntityId: legalEntityId === undefined ? undefined : uuidQuery(legalEntityId, 'legalEntityId'),
+        status: status as 'draft' | 'posted' | 'cancelled' | undefined,
+        from: from === undefined ? undefined : dateQuery(from, 'from'),
+        to: to === undefined ? undefined : dateQuery(to, 'to'),
+      }),
+    };
+  });
+  app.get<{ Params: { id: string } }>('/accounting/entries/:id', async (request) => {
+    if (!uuidRe.test(request.params.id)) throw new ValidationError({ id: 'invalid' });
+    return getEntry(db, await contextOf(request), request.params.id);
+  });
+  app.get<{ Querystring: AccountingQuery }>('/accounting/overview', async (request) =>
+    overview(db, await contextOf(request), uuidQuery(request.query.legalEntityId, 'legalEntityId')),
+  );
+  app.get<{ Querystring: AccountingQuery }>('/accounting/reports/trial-balance', async (request) => {
+    const q = request.query;
+    return trialBalance(db, await contextOf(request), uuidQuery(q.legalEntityId, 'legalEntityId'), dateQuery(q.from, 'from'), dateQuery(q.to, 'to'), q.includeClosing === '1');
+  });
+  app.get<{ Querystring: AccountingQuery }>('/accounting/reports/income-statement', async (request) => {
+    const q = request.query;
+    return incomeStatement(db, await contextOf(request), uuidQuery(q.legalEntityId, 'legalEntityId'), dateQuery(q.from, 'from'), dateQuery(q.to, 'to'));
+  });
+  app.get<{ Querystring: AccountingQuery }>('/accounting/reports/balance-sheet', async (request) => {
+    const q = request.query;
+    return balanceSheet(db, await contextOf(request), uuidQuery(q.legalEntityId, 'legalEntityId'), dateQuery(q.asOf, 'asOf'));
+  });
+  app.get<{ Querystring: AccountingQuery }>('/accounting/reports/ledger', async (request) => {
+    const q = request.query;
+    return accountLedger(db, await contextOf(request), uuidQuery(q.legalEntityId, 'legalEntityId'), uuidQuery(q.accountId, 'accountId'), dateQuery(q.from, 'from'), dateQuery(q.to, 'to'));
   });
 
   app.get('/permissions/catalog', async (request) => {

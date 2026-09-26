@@ -181,7 +181,7 @@ export interface RowChangesTable {
   changed_at: Timestamp;
 }
 
-export interface Database extends CoreDatabase, PhaseTwoTables, InventoryTables, ServiceTables {
+export interface Database extends CoreDatabase, PhaseTwoTables, InventoryTables, ServiceTables, AccountingTables {
   roles: RolesTable;
   role_permissions: RolePermissionsTable;
   role_assignments: RoleAssignmentsTable;
@@ -439,4 +439,128 @@ export interface ServiceTables {
   service_tickets: ServiceTicketsTable;
   service_ticket_events: ServiceTicketEventsTable;
   service_ticket_parts: ServiceTicketPartsTable;
+}
+
+// Owned by packages/engine-accounting. Dates are calendar days kept as 'YYYY-MM-DD' strings (see db.ts).
+type Money = ColumnType<string, string | number | undefined, string | number>;
+type CalendarDate = ColumnType<string, string, string>;
+export type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+export type EntryType = 'manual' | 'source' | 'reversal' | 'closing';
+
+export interface GlAccountsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  code: string;
+  name: string;
+  account_type: AccountType;
+  is_group: Generated<boolean>;
+  parent_id: string | null;
+  active: Generated<boolean>;
+  version: Generated<number>;
+  created_at: Timestamp;
+  created_by: string;
+  updated_at: Timestamp;
+  updated_by: string;
+}
+
+export interface FiscalYearsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  legal_entity_id: string;
+  code: string;
+  start_date: CalendarDate;
+  end_date: CalendarDate;
+  status: Generated<'open' | 'closed'>;
+  closing_entry_id: string | null;
+  closed_at: NullableTimestamp;
+  closed_by: string | null;
+  version: Generated<number>;
+  created_at: Timestamp;
+  created_by: string;
+}
+
+export interface FiscalPeriodsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  fiscal_year_id: string;
+  legal_entity_id: string;
+  period_no: number;
+  kind: 'regular' | 'closing';
+  start_date: CalendarDate;
+  end_date: CalendarDate;
+  status: Generated<'open' | 'closed'>;
+  closed_at: NullableTimestamp;
+  closed_by: string | null;
+  version: Generated<number>;
+}
+
+export interface AccountingSettingsTable {
+  tenant_id: string;
+  legal_entity_id: string;
+  id: Generated<string>;
+  retained_earnings_account_id: string;
+  version: Generated<number>;
+  updated_at: Timestamp;
+  updated_by: string;
+}
+
+export interface JournalEntriesTable {
+  tenant_id: string;
+  id: Generated<string>;
+  legal_entity_id: string;
+  branch_id: string;
+  entry_type: EntryType;
+  entry_date: CalendarDate;
+  status: Generated<'draft' | 'posted' | 'cancelled'>;
+  entry_number: string | null;
+  fiscal_period_id: string | null;
+  memo: string;
+  reference: string | null;
+  source_module: string | null;
+  source_record_id: string | null;
+  reverses_entry_id: string | null;
+  cancel_reason: string | null;
+  posted_at: NullableTimestamp;
+  posted_by: string | null;
+  version: Generated<number>;
+  created_at: Timestamp;
+  created_by: string;
+  updated_at: Timestamp;
+  updated_by: string;
+}
+
+export interface JournalEntryLinesTable {
+  tenant_id: string;
+  id: Generated<string>;
+  entry_id: string;
+  line_no: number;
+  account_id: string;
+  debit: Money;
+  credit: Money;
+  description: string | null;
+}
+
+export interface GlPostingsTable {
+  tenant_id: string;
+  id: Generated<string>;
+  entry_id: string;
+  line_id: string;
+  legal_entity_id: string;
+  branch_id: string;
+  account_id: string;
+  fiscal_period_id: string;
+  entry_date: CalendarDate;
+  debit: Money;
+  credit: Money;
+  posted_at: Timestamp;
+}
+
+export interface AccountingTables {
+  gl_accounts: GlAccountsTable;
+  fiscal_years: FiscalYearsTable;
+  fiscal_periods: FiscalPeriodsTable;
+  accounting_settings: AccountingSettingsTable;
+  journal_entries: JournalEntriesTable;
+  journal_entry_lines: JournalEntryLinesTable;
+  gl_postings: GlPostingsTable;
 }

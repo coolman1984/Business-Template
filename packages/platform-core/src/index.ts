@@ -10,7 +10,7 @@ export * from './numbering.js';
 export * from './permissions.js';
 export * from './capabilities.js';
 export * from './permission-queries.js';
-export type { Database } from './schema.js';
+export type { Database, AccountType, EntryType } from './schema.js';
 export * from './tenant-transaction.js';
 export * from './files.js';
 export * from './jobs.js';
