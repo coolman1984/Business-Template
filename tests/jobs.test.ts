@@ -51,7 +51,8 @@ describe('a dying worker does not duplicate the result', () => {
     const child = promisify(execFile)(process.execPath, ['--import', 'tsx', join(import.meta.dirname, 'fixtures', 'crash-worker.ts')], {
       env: { ...process.env, DATABASE_APP_URL: t.appUrl },
     });
-    await expect(child).rejects.toMatchObject({ signal: 'SIGKILL' });
+    // Windows has no signals: a process killed with SIGKILL ends with exit code 1 and no signal.
+    await expect(child).rejects.toMatchObject(process.platform === 'win32' ? { code: 1, signal: null } : { signal: 'SIGKILL' });
 
     // The dead worker's uncommitted order vanished with its transaction.
     expect(await ordersNamed(name)).toBe(0);

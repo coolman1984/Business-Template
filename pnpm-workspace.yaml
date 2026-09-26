@@ -9,3 +9,4 @@ onlyBuiltDependencies:
   - "@embedded-postgres/darwin-x64"
   - "@embedded-postgres/linux-arm64"
   - "@embedded-postgres/linux-x64"
+  - "@embedded-postgres/windows-x64"
