@@ -4,7 +4,7 @@
 
   var DB = globalThis.CeramicData.generate();
   var PAGE_SIZE = 25;
-  var DONE_PHASES = ['A1', 'A2', 'A3', 'A4', 'A5'];
+  var DONE_PHASES = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6'];
 
   // ================================================================ i18n
   var UI = {
@@ -23,7 +23,7 @@
       'profile.linesTitle': 'خطوط الإنتاج والأفران', 'profile.capacity': 'الطاقة اليومية', 'profile.kiln': 'الفرن', 'profile.kilnSpec': '{len} م · دورة {cyc} دقيقة · حتى {temp}°م',
       'profile.sizes': 'المقاسات', 'profile.packing': 'التعبئة لكل مقاس', 'profile.packNote': 'البيع بالمتر المربع، والتخزين بالكرتونة، والتحميل بالباليتة — والتحويل بينهم من الجدول ده.',
       'profile.shifts': 'الورديات', 'profile.sites': 'المواقع والمخازن', 'profile.roadmap': 'مسار بناء النموذج', 'profile.now': 'دلوقتي',
-      'profile.families': 'تشكيلة المنتجات',
+      'profile.families': 'تشكيلة المنتجات', 'profile.demoTools': 'أدوات العرض', 'profile.demoToolsNote': 'جولة إرشادية، شاشة تابلت للعامل، ونموذج استيراد من إكسيل — كلها بتشتغل على نفس البيانات.',
       'rm.A1': 'البيانات الأساسية والهيكل والتنقل', 'rm.A2': 'لوحات الإدارة العليا والإنتاج والجودة', 'rm.A3': 'التخطيط والتحضير والجليز والخطوط والفرز والمعمل',
       'rm.A4': 'المخازن والمنتج التام بدرجات اللون، المبيعات والتوزيع', 'rm.A5': 'المشتريات، الصيانة، الطاقة، العاملين، التكاليف، السلامة', 'rm.A6': 'الاستيراد من إكسيل، شاشات التابلت، سيناريو العرض',
       // columns
@@ -129,6 +129,27 @@
       'p.purchaseOrders': 'طلبات وأوامر الشراء', 'p.purchaseOrders.sub': 'طلبات الشراء والأوامر للخامات وقطع الغيار.',
       'p.workOrders': 'أوامر الشغل', 'p.workOrders.sub': 'أوامر الصيانة الوقائية وأوامر إصلاح الأعطال.',
       'p.safetyIncidents': 'حوادث السلامة', 'p.safetyIncidents.sub': 'حوادث السلامة والملاحظات بخطورتها وحالتها.',
+      // A6: tablet, import demo, guided tour
+      'p.tablet': 'شاشة التابلت للعامل', 'p.tablet.sub': 'إدخال سريع للتوقف بلمسة واحدة، بشاشة كبيرة مناسبة للتابلت في الخط.',
+      'p.import': 'استيراد من إكسيل — جرد المخازن', 'p.import.sub': 'محاكاة لاستيراد ملف جرد للخامات، بمعاينة وتحقق قبل الاعتماد.',
+      'tablet.open': 'شاشة التابلت للعامل', 'tablet.backToDashboard': 'رجوع للوحة الإنتاج', 'tablet.pickLine': 'اختر الخط', 'tablet.todayTitle': 'أداء اليوم',
+      'tablet.kilnOut': 'خارج الفرن م²', 'tablet.downtimeToday': 'دقائق التوقف اليوم', 'tablet.logDowntime': 'سجّل توقف', 'tablet.sessionLog': 'سجل الجلسة',
+      'tablet.clear': 'مسح', 'tablet.noEntries': 'لسه مفيش إدخالات في الجلسة دي.',
+      'import.open': 'استيراد من إكسيل', 'import.intro': 'نموذج لاستيراد ملف جرد مخزني للخامات: معاينة الصفوف، التحقق من الأكواد والانحرافات، ثم الاعتماد.',
+      'import.loadSample': 'تحميل ملف نموذجي', 'import.kpi.rows': 'صفوف الملف', 'import.kpi.ok': 'سليمة', 'import.kpi.warning': 'بها تنبيه', 'import.kpi.error': 'بها خطأ',
+      'import.previewTitle': 'معاينة الاستيراد', 'import.system': 'رصيد النظام', 'import.counted': 'الجرد الفعلي', 'import.variance': 'الانحراف', 'import.unknownCode': 'كود غير معروف',
+      'import.status.ok': 'سليم', 'import.status.warning': 'انحراف كبير', 'import.status.error': 'كود غير معروف',
+      'import.commit': 'اعتماد الاستيراد', 'import.cancel': 'إلغاء', 'import.blockedByErrors': 'مينفعش الاعتماد والملف فيه صفوف بكود غير معروف — لازم تتصحح الأول.',
+      'import.doneNote': 'تم الاعتماد. في نظام حقيقي، ده هيترحّل كمستندات تسوية جرد عبر عقد حركات المخزون، مش تعديل مباشر في الأرصدة.', 'import.startOver': 'استيراد ملف تاني',
+      'tour.start': 'ابدأ جولة إرشادية', 'tour.label': 'الجولة الإرشادية', 'tour.stepOf': 'خطوة {n} من {total}', 'tour.prev': 'السابق', 'tour.skip': 'تخطي', 'tour.next': 'التالي', 'tour.finish': 'إنهاء',
+      'tour.s1.title': 'أهلاً بيك في سيراميكا نوفا', 'tour.s1.body': 'ده ملف المصنع: الخطوط والطاقة والمقاسات والمواقع، ومسار بناء النموذج بالكامل.',
+      'tour.s2.title': 'لوحة الإدارة العليا', 'tour.s2.body': 'نظرة صباحية سريعة: الإنتاج والفرز الأول، المبيعات والتحصيل، والتنبيهات اللي محتاجة قرار.',
+      'tour.s3.title': 'خطوط الإنتاج', 'tour.s3.body': 'كفاءة كل خط، التوقف بأسبابه، وسجل تقارير الورديات — وممكن تفتح شاشة التابلت من هنا.',
+      'tour.s4.title': 'الجودة والمعمل', 'tour.s4.body': 'نسبة نجاح الاختبارات، أكثر العيوب تكرارًا، وتقارير عدم المطابقة المفتوحة.',
+      'tour.s5.title': 'المنتج التام', 'tour.s5.body': 'رصيد كل منتج بالفرز ودرجة اللون، محسوب من لوطات الفرز بعد خصم المحجوز والمشحون.',
+      'tour.s6.title': 'طلبية بيع', 'tour.s6.body': 'طلبيات التجار بيتم تخصيصها من رصيد بدرجة لون واحدة، مع فحص حد الائتمان تلقائيًا.',
+      'tour.s7.title': 'التوزيع والشحن', 'tour.s7.body': 'تحميلات العربيات بسائقيها وباليتاتها، وكل تحميلة مربوطة بالطلبيات اللي عليها.',
+      'tour.s8.title': 'المشتريات', 'tour.s8.body': 'وبكده قفلنا الدورة: الأصناف اللي تحت حد الطلب بتظهر هنا تلقائيًا كطلبات شراء.',
     },
     en: {
       'brand.sub': 'Factory management system', 'demo.note': 'Demo — every name and number here is fictional and belongs to no real factory.', 'demo.tag': 'Demo',
@@ -144,7 +165,7 @@
       'profile.linesTitle': 'Production lines and kilns', 'profile.capacity': 'Daily capacity', 'profile.kiln': 'Kiln', 'profile.kilnSpec': '{len} m · {cyc}-min cycle · up to {temp} °C',
       'profile.sizes': 'Sizes', 'profile.packing': 'Packing by size', 'profile.packNote': 'Sold by the square metre, stored by the box, loaded by the pallet — this table converts between them.',
       'profile.shifts': 'Shifts', 'profile.sites': 'Sites and stores', 'profile.roadmap': 'Demo build path', 'profile.now': 'Now',
-      'profile.families': 'Product range',
+      'profile.families': 'Product range', 'profile.demoTools': 'Demo tools', 'profile.demoToolsNote': 'A guided tour, an operator tablet screen, and an Excel import demo — all working on the same data.',
       'rm.A1': 'Master data, structure and navigation', 'rm.A2': 'Executive, production and quality dashboards', 'rm.A3': 'Planning, body prep, glaze, lines, sorting and lab',
       'rm.A4': 'Stores with shade-level finished goods, sales and dispatch', 'rm.A5': 'Purchasing, maintenance, energy, people, costing, safety', 'rm.A6': 'Excel import, tablet screens, demo script',
       'c.code': 'Code', 'c.name': 'Name', 'c.family': 'Family', 'c.size': 'Size', 'c.finish': 'Finish', 'c.line': 'Line', 'c.g1': 'First choice', 'c.g2': 'Commercial', 'c.cost': 'Standard cost',
@@ -246,6 +267,27 @@
       'p.purchaseOrders': 'Purchase orders', 'p.purchaseOrders.sub': 'Purchase requests and orders for materials and spare parts.',
       'p.workOrders': 'Work orders', 'p.workOrders.sub': 'Preventive maintenance and breakdown repair work orders.',
       'p.safetyIncidents': 'Safety incidents', 'p.safetyIncidents.sub': 'Safety incidents and observations with severity and status.',
+      // A6: tablet, import demo, guided tour
+      'p.tablet': 'Operator tablet screen', 'p.tablet.sub': 'Fast one-tap downtime entry on a screen sized for a tablet on the line.',
+      'p.import': 'Excel import — stock count', 'p.import.sub': 'A simulated import of a material stock-count file, with preview and validation before it is committed.',
+      'tablet.open': 'Operator tablet screen', 'tablet.backToDashboard': 'Back to production dashboard', 'tablet.pickLine': 'Pick a line', 'tablet.todayTitle': "Today's performance",
+      'tablet.kilnOut': 'Kiln-out m²', 'tablet.downtimeToday': 'Downtime minutes today', 'tablet.logDowntime': 'Log downtime', 'tablet.sessionLog': 'Session log',
+      'tablet.clear': 'Clear', 'tablet.noEntries': 'No entries logged this session yet.',
+      'import.open': 'Excel import demo', 'import.intro': 'A demo of importing a material stock-count file: preview the rows, validate codes and variances, then commit.',
+      'import.loadSample': 'Load sample file', 'import.kpi.rows': 'File rows', 'import.kpi.ok': 'Clean', 'import.kpi.warning': 'Flagged', 'import.kpi.error': 'Errored',
+      'import.previewTitle': 'Import preview', 'import.system': 'System balance', 'import.counted': 'Counted', 'import.variance': 'Variance', 'import.unknownCode': 'Unknown code',
+      'import.status.ok': 'OK', 'import.status.warning': 'Large variance', 'import.status.error': 'Unknown code',
+      'import.commit': 'Commit import', 'import.cancel': 'Cancel', 'import.blockedByErrors': 'Cannot commit while the file has rows with an unknown code — fix them first.',
+      'import.doneNote': 'Committed. In a real system this would post as stock-count adjustment documents through the inventory movement contract, not a direct edit to balances.', 'import.startOver': 'Import another file',
+      'tour.start': 'Start guided tour', 'tour.label': 'Guided tour', 'tour.stepOf': 'Step {n} of {total}', 'tour.prev': 'Back', 'tour.skip': 'Skip', 'tour.next': 'Next', 'tour.finish': 'Finish',
+      'tour.s1.title': 'Welcome to Ceramica Nova', 'tour.s1.body': "This is the factory profile: lines, capacity, sizes, sites, and the full build path of this demo.",
+      'tour.s2.title': 'Executive dashboard', 'tour.s2.body': 'A morning snapshot: output and first-choice rate, sales and collections, and the alerts that need a decision.',
+      'tour.s3.title': 'Production lines', 'tour.s3.body': "Each line's efficiency, downtime by reason, and the shift report log — and you can open the tablet screen from here.",
+      'tour.s4.title': 'Quality & lab', 'tour.s4.body': 'Test pass rate, the most frequent defects, and open non-conformance reports.',
+      'tour.s5.title': 'Finished goods', 'tour.s5.body': 'Stock by product and shade, rolled up from sorting lots net of what is reserved and dispatched.',
+      'tour.s6.title': 'A sales order', 'tour.s6.body': 'Dealer orders are allocated from a single-shade stock position, with an automatic credit-limit check.',
+      'tour.s7.title': 'Dispatch & shipping', 'tour.s7.body': 'Truck loads with driver and pallets, each one linked to the orders it carries.',
+      'tour.s8.title': 'Purchasing', 'tour.s8.body': 'And the loop closes here: items below their reorder point show up automatically as purchase requests.',
     },
   };
 
@@ -257,6 +299,9 @@
     lists: {},
     drawer: [],
     codesTab: 'defects',
+    tablet: { line: 'L1', log: [] },
+    tour: null,
+    importStep: 'start',
   };
   try {
     var savedLocale = localStorage.getItem('nova-locale');
@@ -432,7 +477,7 @@
     { id: 'employees', icon: 'id' }, { id: 'codes', icon: 'tag' },
   ];
   var MODULE_BY_ID = {}; MODULES.forEach(function (m) { MODULE_BY_ID[m.id] = m; });
-  function pageExists(id) { return id === 'profile' || !!MODULE_BY_ID[id] || MASTER.some(function (m) { return m.id === id; }); }
+  function pageExists(id) { return id === 'profile' || id === 'tablet' || id === 'import' || !!MODULE_BY_ID[id] || MASTER.some(function (m) { return m.id === id; }); }
   function pageTitle(id) {
     if (id === 'profile') return t('profile.title');
     if (MODULE_BY_ID[id]) return L(MODULE_BY_ID[id].name);
@@ -955,7 +1000,14 @@
           '<div class="section-title" style="margin-top:18px"><h2>' + esc(t('profile.shifts')) + '</h2></div>' + shifts + '</section>' +
         '<section class="card"><div class="section-title"><h2>' + esc(t('profile.sites')) + '</h2></div>' + sites + '</section>' +
       '</div>' +
-      '<section><div class="section-title"><h2>' + esc(t('profile.roadmap')) + '</h2></div>' + roadmap + '</section>';
+      '<section><div class="section-title"><h2>' + esc(t('profile.roadmap')) + '</h2></div>' + roadmap + '</section>' +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('profile.demoTools')) + '</h2></div>' +
+        '<p class="muted small" style="margin-bottom:10px">' + esc(t('profile.demoToolsNote')) + '</p>' +
+        '<div class="ready-links">' +
+          '<button data-action="tourStart">' + icon('chart', 14) + ' ' + esc(t('tour.start')) + '</button>' +
+          '<button class="tablet-btn" data-action="nav" data-id="tablet">' + icon('factory', 14) + ' ' + esc(t('tablet.open')) + '</button>' +
+          '<button data-action="nav" data-id="import">' + icon('receipt', 14) + ' ' + esc(t('import.open')) + '</button>' +
+        '</div></section>';
   }
 
   function renderCodes() {
@@ -1060,7 +1112,7 @@
 
     var dailyTrend = WINDOW.map(function (date) { return { date: date, value: sumField(DB.shiftReports.filter(function (s) { return s.date === date; }), 'downtimeMinutes') }; });
 
-    return pageHead(L(MODULE_BY_ID.lines.name), t('prod.sub'), 'g.production') + stats +
+    return pageHead(L(MODULE_BY_ID.lines.name), t('prod.sub'), 'g.production', '<button class="tablet-btn" data-action="nav" data-id="tablet">' + icon('factory', 14) + ' ' + esc(t('tablet.open')) + '</button>') + stats +
       '<div class="grid-2">' +
         '<section class="card"><div class="section-title"><h2>' + esc(t('prod.byLineTitle')) + '</h2></div>' + rankBars(byLine, { format: function (v) { return num(v) + ' ' + m2(); } }) + '</section>' +
         '<section class="card"><div class="section-title"><h2>' + esc(t('prod.downtimeTitle')) + '</h2></div>' + rankBars(downtimeRows, { format: function (v) { return num(v) + ' ' + t('prod.minUnit'); } }) + '</section>' +
@@ -1393,6 +1445,118 @@
     return pageHead(L(MODULE_BY_ID.safety.name), t('safety.sub'), 'g.support') + stats +
       '<section class="card"><div class="section-title"><h2>' + esc(t('safety.bySeverityTitle')) + '</h2></div>' + rankBars(sevRows) + '</section>' +
       '<div class="row spread"><h2 style="margin:0">' + esc(t('safety.logTitle')) + '</h2></div>' + renderListPage('safetyIncidents', true);
+  }
+
+  // ================================================================ A6: tablet screen, Excel import demo, guided tour
+  function renderTabletPage() {
+    var line = state.tablet.line;
+    var todayReports = DB.shiftReports.filter(function (s) { return s.line === line && s.date === DB.referenceDate; });
+    var latest = todayReports[todayReports.length - 1];
+
+    var lineButtons = DB.lines.map(function (l) {
+      return '<button class="tablet-tile' + (l.id === line ? ' active' : '') + '" data-action="tabletLine" data-line="' + l.id + '">' + esc(L(l.name)) + '</button>';
+    }).join('');
+
+    var statusHtml = latest ? statTiles([
+      { value: num(latest.kilnOutM2) + ' ' + m2(), label: t('tablet.kilnOut') },
+      { value: (latest.kilnOutM2 ? num(Math.round(latest.firstM2 / latest.kilnOutM2 * 100)) : '—') + pct(), label: t('c.firstPct') },
+      { value: num(latest.downtimeMinutes), label: t('tablet.downtimeToday') },
+    ]) : '<p class="muted small">' + esc(t('common.dash')) + '</p>';
+
+    var codes = DB.codes.downtime.slice(0, 8);
+    var codeButtons = codes.map(function (c) {
+      return '<button class="tablet-tile" data-action="tabletLog" data-code="' + c.id + '">' + esc(L(c.name)) + '</button>';
+    }).join('');
+
+    var loggedMinutes = state.tablet.log.reduce(function (s, e) { return s + e.minutes; }, 0);
+    var logRows = state.tablet.log.slice().reverse().map(function (e) {
+      var code = DB.codes.downtime.filter(function (c) { return c.id === e.codeId; })[0];
+      return '<li><span>' + esc(L(code.name)) + '</span><span class="num">' + num(e.minutes) + ' ' + t('prod.minUnit') + '</span></li>';
+    }).join('');
+
+    return pageHead(t('p.tablet'), t('p.tablet.sub'), 'g.production', '<button class="link" data-action="nav" data-id="lines">' + esc(t('tablet.backToDashboard')) + '</button>') +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('tablet.pickLine')) + '</h2></div><div class="tablet-grid">' + lineButtons + '</div></section>' +
+      '<section class="card"><div class="section-title"><h2>' + esc(L(LINE[line].name)) + ' · ' + esc(t('tablet.todayTitle')) + '</h2></div>' + statusHtml + '</section>' +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('tablet.logDowntime')) + '</h2></div><div class="tablet-grid">' + codeButtons + '</div></section>' +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('tablet.sessionLog')) + ' (' + num(loggedMinutes) + ' ' + t('prod.minUnit') + ')</h2>' +
+        (state.tablet.log.length ? '<button class="link" data-action="tabletClear">' + esc(t('tablet.clear')) + '</button>' : '') + '</div>' +
+        (state.tablet.log.length ? '<ul class="linklist">' + logRows + '</ul>' : '<p class="muted small">' + esc(t('tablet.noEntries')) + '</p>') + '</section>';
+  }
+
+  function buildImportRows() {
+    var sample = DB.materials.slice(0, 10);
+    var rows = sample.map(function (m, i) {
+      var delta = ((m.code.charCodeAt(m.code.length - 1) + i) % 11) - 5;
+      var counted = Math.max(0, Math.round(m.onHand * (1 + delta / 100)));
+      var variancePct = m.onHand ? Math.round((counted - m.onHand) / m.onHand * 100) : 0;
+      return { code: m.code, material: m, system: m.onHand, counted: counted, variancePct: variancePct, status: Math.abs(variancePct) > 8 ? 'warning' : 'ok' };
+    });
+    rows.push({ code: 'MAT-9999', material: null, system: null, counted: 40, variancePct: null, status: 'error' });
+    return rows;
+  }
+
+  function renderImportPage() {
+    var rows = buildImportRows();
+    var okCount = rows.filter(function (r) { return r.status === 'ok'; }).length;
+    var warnCount = rows.filter(function (r) { return r.status === 'warning'; }).length;
+    var errCount = rows.filter(function (r) { return r.status === 'error'; }).length;
+
+    if (state.importStep === 'start') {
+      return pageHead(t('p.import'), t('p.import.sub'), 'g.master') +
+        '<section class="card"><p>' + esc(t('import.intro')) + '</p><button class="primary" data-action="importLoad">' + esc(t('import.loadSample')) + '</button></section>';
+    }
+
+    var stats = statTiles([
+      { value: num(rows.length), label: t('import.kpi.rows') },
+      { value: num(okCount), label: t('import.kpi.ok') },
+      { value: num(warnCount), label: t('import.kpi.warning') },
+      { value: num(errCount), label: t('import.kpi.error') },
+    ]);
+
+    var tableRows = rows.map(function (r) {
+      var tone = r.status === 'error' ? 'bad' : r.status === 'warning' ? 'warn' : 'pos';
+      var name = r.material ? openLink('material', r.material.id, L(r.material.name)) : '<span class="muted">' + esc(t('import.unknownCode')) + '</span>';
+      return '<tr><td class="mono">' + esc(r.code) + '</td><td>' + name + '</td>' +
+        '<td class="end num">' + (r.system != null ? num(r.system) : '—') + '</td><td class="end num">' + num(r.counted) + '</td>' +
+        '<td class="end num">' + (r.variancePct != null ? (r.variancePct > 0 ? '+' : '') + num(r.variancePct) + pct() : '—') + '</td>' +
+        '<td>' + chip(t('import.status.' + r.status), tone, r.status === 'ok') + '</td></tr>';
+    }).join('');
+    var table = '<div class="table-wrap"><table><thead><tr><th>' + esc(t('c.code')) + '</th><th>' + esc(t('c.name')) + '</th>' +
+      '<th class="end">' + esc(t('import.system')) + '</th><th class="end">' + esc(t('import.counted')) + '</th><th class="end">' + esc(t('import.variance')) + '</th><th>' + esc(t('c.status')) + '</th></tr></thead><tbody>' + tableRows + '</tbody></table></div>';
+
+    var actionRow = state.importStep === 'preview'
+      ? '<div class="row spread" style="margin-top:12px">' +
+          '<button class="primary" data-action="importCommit"' + (errCount ? ' disabled' : '') + '>' + esc(t('import.commit')) + '</button>' +
+          '<button class="link" data-action="importReset">' + esc(t('import.cancel')) + '</button></div>' +
+        (errCount ? '<p class="muted small">' + esc(t('import.blockedByErrors')) + '</p>' : '')
+      : '<div style="margin-top:12px"><p class="muted small">' + esc(t('import.doneNote')) + '</p><button class="link" data-action="importReset">' + esc(t('import.startOver')) + '</button></div>';
+
+    return pageHead(t('p.import'), t('p.import.sub'), 'g.master') + stats +
+      '<section class="card"><div class="section-title"><h2>' + esc(t('import.previewTitle')) + '</h2></div>' + table + actionRow + '</section>';
+  }
+
+  var TOUR_STEPS = [
+    { page: 'profile', title: 'tour.s1.title', body: 'tour.s1.body' },
+    { page: 'exec', title: 'tour.s2.title', body: 'tour.s2.body' },
+    { page: 'lines', title: 'tour.s3.title', body: 'tour.s3.body' },
+    { page: 'quality', title: 'tour.s4.title', body: 'tour.s4.body' },
+    { page: 'stores', title: 'tour.s5.title', body: 'tour.s5.body' },
+    { page: 'sales', title: 'tour.s6.title', body: 'tour.s6.body' },
+    { page: 'dispatch', title: 'tour.s7.title', body: 'tour.s7.body' },
+    { page: 'purchasing', title: 'tour.s8.title', body: 'tour.s8.body' },
+  ];
+  function renderTourBanner() {
+    if (!state.tour) return '';
+    var step = TOUR_STEPS[state.tour.step];
+    var isLast = state.tour.step === TOUR_STEPS.length - 1;
+    return '<div class="tour-banner" role="dialog" aria-label="' + esc(t('tour.label')) + '">' +
+      '<div class="tour-body"><span class="tour-step">' + esc(t('tour.stepOf', { n: num(state.tour.step + 1), total: num(TOUR_STEPS.length) })) + '</span>' +
+        '<h3>' + esc(t(step.title)) + '</h3><p>' + esc(t(step.body)) + '</p></div>' +
+      '<div class="tour-actions">' +
+        (state.tour.step > 0 ? '<button class="link" data-action="tourPrev">' + esc(t('tour.prev')) + '</button>' : '') +
+        '<button class="link" data-action="tourEnd">' + esc(t('tour.skip')) + '</button>' +
+        '<button class="primary" data-action="tourNext">' + esc(isLast ? t('tour.finish') : t('tour.next')) + '</button>' +
+      '</div></div>';
   }
 
   function renderPlanned(m) {
@@ -1742,6 +1906,7 @@
     dispatch: function () { return renderListPage('dispatchLoads'); },
     purchasing: renderPurchasingPage, maintenance: renderMaintenancePage, energy: renderEnergyPage,
     people: renderPeoplePage, costing: renderCostingPage, safety: renderSafetyPage,
+    tablet: renderTabletPage, import: renderImportPage,
   };
   function renderPage() {
     if (state.page === 'profile') return renderProfile();
@@ -1772,7 +1937,7 @@
           renderPage() +
         '</main>' +
       '</div>' +
-    '</div>' + renderDrawer();
+    '</div>' + renderDrawer() + renderTourBanner();
   }
   function renderLogin() {
     return '<div class="floating">' + themeButton() + langButton() + '</div>' +
@@ -1818,7 +1983,7 @@
     nav: function (el) {
       var id = el.getAttribute('data-id');
       if (!pageExists(id)) return;
-      state.page = id; state.navOpen = false; state.drawer = [];
+      state.page = id; state.navOpen = false; state.drawer = []; state.tour = null;
       try { history.replaceState(null, '', '#' + id); } catch (e) { /* sandboxed: ignore */ }
       render();
       window.scrollTo(0, 0);
@@ -1862,6 +2027,27 @@
       refocus('[data-action="page"]:not([disabled])' , forward);
     },
     codesTab: function (el) { state.codesTab = el.getAttribute('data-tab'); render(true); },
+    tabletLine: function (el) { state.tablet.line = el.getAttribute('data-line'); render(true); },
+    tabletLog: function (el) { state.tablet.log.push({ codeId: el.getAttribute('data-code'), minutes: 10 }); render(true); },
+    tabletClear: function () { state.tablet.log = []; render(true); },
+    importLoad: function () { state.importStep = 'preview'; render(true); },
+    importCommit: function () { state.importStep = 'done'; render(true); },
+    importReset: function () { state.importStep = 'start'; render(true); },
+    tourStart: function () {
+      state.tour = { step: 0 }; state.page = TOUR_STEPS[0].page; state.drawer = []; state.navOpen = false;
+      render(); window.scrollTo(0, 0);
+    },
+    tourNext: function () {
+      if (state.tour.step >= TOUR_STEPS.length - 1) { state.tour = null; render(true); return; }
+      state.tour.step++; state.page = TOUR_STEPS[state.tour.step].page; state.drawer = [];
+      render(); window.scrollTo(0, 0);
+    },
+    tourPrev: function () {
+      if (state.tour.step <= 0) return;
+      state.tour.step--; state.page = TOUR_STEPS[state.tour.step].page; state.drawer = [];
+      render(); window.scrollTo(0, 0);
+    },
+    tourEnd: function () { state.tour = null; render(true); },
   };
 
   document.addEventListener('click', function (e) {

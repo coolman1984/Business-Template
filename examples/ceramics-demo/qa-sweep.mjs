@@ -28,7 +28,7 @@ const problems = new Set();
 const note = (m) => problems.add(m);
 const b = await chromium.launch(chromiumPath ? { executablePath: chromiumPath } : {});
 try {
-const PAGES = ['profile','exec','planning','prep','glaze','lines','sorting','quality','stores','sales','dispatch','purchasing','maintenance','energy','people','costing','safety','products','materials','recipes','assets','spareParts','warehouses','suppliers','dealers','employees','codes'];
+const PAGES = ['profile','exec','planning','prep','glaze','lines','sorting','quality','stores','sales','dispatch','purchasing','maintenance','energy','people','costing','safety','tablet','import','products','materials','recipes','assets','spareParts','warehouses','suppliers','dealers','employees','codes'];
 
 // Layout audit: page must not scroll sideways; nothing may be clipped by an overflow:hidden box;
 // no text overflows its own box; no raw i18n keys or "undefined"/"NaN" leak into the UI.
